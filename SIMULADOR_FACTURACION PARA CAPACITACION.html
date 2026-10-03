@@ -1,0 +1,2862 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de facturación para personal en etapa de entrenamiento. (RM Toma de Pedidos)</title>
+    <!-- Librería para lectura de archivos Excel (.xlsx / .csv) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Tahoma', 'Segoe UI', Geneva, Verdana, sans-serif;
+            font-size: 11px;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: auto; /* Permite scroll horizontal y vertical en móviles */
+            -webkit-overflow-scrolling: touch; /* Desplazamiento suave en iOS/Android */
+        }
+
+        body {
+            background-color: #2c3e50;
+            padding: 0;
+            color: #000;
+            user-select: none;
+            min-width: 850px; /* Mantiene la interfaz de escritorio completa sin recortarla */
+        }
+
+        /* Banner informativo de rotación para celulares */
+        .rotate-notice {
+            display: none;
+            position: sticky;
+            top: 0;
+            left: 0;
+            right: 0;
+            background-color: #000080;
+            color: #ffffff;
+            padding: 8px 12px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #ffffff;
+        }
+
+        /* Se muestra la sugerencia cuando la pantalla del celular está en vertical */
+        @media screen and (max-width: 768px) and (orientation: portrait) {
+            .rotate-notice {
+                display: flex;
+            }
+        }
+
+        /* Campos No Editables (Grises) - Sin selección ni foco por clic */
+        input[readonly] {
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            pointer-events: none;
+        }
+
+        /* 1. Titulo Superior Ventana Oracle */
+        .window-title-bar {
+            background-color: #000000;
+            color: #ffffff;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        /* 2. Barra de Menú Clásica */
+        .top-menu-bar {
+            background-color: #d4d0c8;
+            border-bottom: 1px solid #808080;
+            display: flex;
+            align-items: center;
+            padding: 2px 5px;
+            font-size: 11px;
+        }
+
+        .menu-item {
+            padding: 2px 8px;
+            cursor: pointer;
+            color: #000;
+        }
+
+        .menu-item:hover {
+            background-color: #0a246a;
+            color: #fff;
+        }
+
+        /* 3. Barra de Herramientas de Íconos */
+        .icon-toolbar {
+            background-color: #d4d0c8;
+            border-bottom: 1px solid #808080;
+            padding: 3px 6px;
+            display: flex;
+            gap: 2px;
+            align-items: center;
+        }
+
+        .tool-btn {
+            width: 22px;
+            height: 20px;
+            background-color: #d4d0c8;
+            border: 1px solid #707070;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border-radius: 1px;
+            font-weight: bold;
+            font-size: 11px;
+            box-shadow: inset 1px 1px #fff, inset -1px -1px #808080;
+        }
+
+        .tool-btn:active {
+            box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+        }
+
+        .tool-btn.btn-green-plus { color: #008000; font-size: 14px; }
+        .tool-btn.btn-red-x { color: #cc0000; font-size: 13px; font-weight: 900; }
+
+        .tool-separator {
+            width: 1px;
+            height: 18px;
+            background-color: #808080;
+            border-right: 1px solid #ffffff;
+            margin: 0 4px;
+        }
+
+        /* 4. Contenedor Principal */
+        .forms-container {
+            padding: 8px;
+            background-color: #5f7593;
+            min-height: calc(100vh - 80px);
+        }
+
+        .form-header-title {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .red-dot {
+            width: 10px;
+            height: 10px;
+            background-color: red;
+            border-radius: 50%;
+            display: inline-block;
+            border: 1px solid #fff;
+        }
+
+        /* Carga de Datos Excel */
+        .data-toolbar {
+            background-color: #c0c0c0;
+            border: 1px solid #808080;
+            padding: 3px 8px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .btn-upload {
+            background-color: #ffffff;
+            border: 1px solid #0f5a28;
+            color: #0f5a28;
+            padding: 2px 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Campos Superiores */
+        .form-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+
+        label.form-label {
+            color: #ffffff;
+            min-width: 90px;
+            text-align: right;
+        }
+
+        input[type="text"] {
+            border: 1px solid #7f9db9;
+            height: 20px;
+            padding: 2px 4px;
+            background-color: #cccccc;
+            color: #000;
+            text-transform: uppercase;
+        }
+
+        input[type="text"].white-bg { background-color: #ffffff; pointer-events: auto; user-select: auto; }
+
+        .btn-ellipsis {
+            height: 20px;
+            width: 20px;
+            background-color: #d4d0c8;
+            border: 1px solid #707070;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Grid / Tabla Principal */
+        .grid-container {
+            margin-top: 6px;
+            background-color: #5f7593;
+            border: 1px solid #2c3e50;
+            max-height: 380px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+
+        table.forms-table {
+            border-collapse: separate;
+            border-spacing: 1px;
+            background-color: #2c3e50;
+            width: max-content;
+            min-width: 100%;
+        }
+
+        table.forms-table th {
+            background-color: #1a2b3c;
+            color: #ffffff;
+            font-weight: normal;
+            padding: 4px 3px;
+            text-align: center;
+            border: 1px solid #4a5765;
+            white-space: pre-line;
+            line-height: 1.1;
+            font-size: 10px;
+        }
+
+        table.forms-table td {
+            background-color: #cccccc;
+            padding: 1px;
+            vertical-align: middle;
+        }
+
+        /* Indicador Selección Azul Lateral */
+        .select-indicator {
+            width: 8px;
+            height: 18px;
+            background-color: #808080;
+            margin: 0 auto;
+        }
+
+        tr.selected-row .select-indicator {
+            background-color: #0000d1;
+        }
+
+        /* Inputs dentro de la grilla */
+        table.forms-table input[type="text"] {
+            width: 100%;
+            height: 20px;
+            border: 1px solid #707070;
+            color: #000;
+        }
+
+        input.grid-input:focus {
+            outline: none;
+            border-color: #0000d1 !important;
+        }
+
+        .grid-chk {
+            display: block;
+            margin: 0 auto;
+            width: 13px;
+            height: 13px;
+        }
+
+        /* Pie de Página */
+        .footer-bar {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            padding-right: 5px;
+        }
+
+        .btn-register {
+            background: linear-gradient(to bottom, #ffffff, #d4d0c8);
+            border: 1px solid #707070;
+            padding: 4px 14px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 12px;
+            color: #000;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+        }
+
+        .btn-register:disabled {
+            opacity: 0.5;
+            cursor: default;
+            box-shadow: none;
+        }
+
+        .btn-register:focus {
+            outline: 2px solid #0000d1;
+            border-color: #0000d1;
+        }
+
+        /* Modales Adaptables para Móviles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        /* Ventana Asigna Notas de Crédito */
+        #calModal .cal-nav { background: #dfe8f5; border: 1px solid #5a6f8f; color: #1a3d8f; width: 24px; height: 22px; font-weight: bold; cursor: pointer; padding: 0; }
+        #calModal table.cal-grid { border-collapse: collapse; width: 100%; background: #ffffff; color: #000000; }
+        #calModal table.cal-grid th { font-weight: normal; padding: 3px 0; text-align: center; background: #ffffff; }
+        #calModal table.cal-grid td { text-align: center; padding: 3px 0; cursor: pointer; font-size: 12px; }
+        #calModal table.cal-grid td.in-month { font-weight: bold; }
+        #calModal table.cal-grid td.sel { background: #000080; color: #ffffff; }
+        #ncModal .modal-header { cursor: move; user-select: none; touch-action: none; }
+        #ncModal .nc-input { background-color: #ffffff; border: 1px solid #808080; height: 20px; padding: 0 3px; }
+        #ncModal .nc-grid-input { width: 100%; box-sizing: border-box; height: 22px; background-color: #cccccc; border: 1px solid #808080; padding: 0 3px; }
+        #ncModal table.nc-grid { border-collapse: separate; border-spacing: 2px; width: 100%; }
+        #ncModal table.nc-grid th { font-weight: normal; text-align: center; padding: 2px 0; }
+
+        /* Alineación a la izquierda para Registro de Pedido */
+        #registroPedidoModal {
+            justify-content: flex-start;
+            align-items: flex-start;
+        }
+
+        .modal-window {
+            background-color: #d4d0c8;
+            border: 2px solid #000080;
+            width: 600px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 3px 3px 10px rgba(0,0,0,0.6);
+        }
+
+        .modal-header {
+            background-color: #000080;
+            color: white;
+            padding: 4px 8px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-body { padding: 10px; }
+
+        .modal-table-container {
+            max-height: 220px;
+            overflow-y: auto;
+            background-color: #ffffff;
+            border: 1px solid #808080;
+            margin-top: 6px;
+        }
+
+        .modal-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .modal-table th, .modal-table td {
+            border: 1px solid #808080;
+            padding: 4px;
+            text-align: left;
+        }
+
+        .modal-table th { background-color: #e0e0e0; position: sticky; top: 0; }
+        
+        .modal-table tr:hover { cursor: pointer; } 
+        
+        .modal-table tr.selected { background-color: #0000d1; color: white; }
+        .modal-table tr.selected .quantity-cell { color: #ffffff !important; font-weight: bold; }
+
+        /* Ventana Lista de Artículo: movible y redimensionable */
+        #productModal {
+            display: none;
+            padding: 0;
+        }
+
+        #productModal.active {
+            display: block;
+        }
+
+        #productModal .modal-window {
+            position: fixed;
+            left: 2vw;
+            top: 5vh;
+            width: 95vw;
+            max-width: 95vw;
+            height: 78vh;
+            max-height: 90vh;
+            min-width: 620px;
+            min-height: 300px;
+            overflow: hidden;
+            margin: 0;
+        }
+
+        #productModal .modal-header {
+            cursor: move;
+            user-select: none;
+        }
+
+        #productModal .modal-body {
+            height: calc(100% - 72px);
+            overflow: hidden;
+        }
+
+        #productModal .modal-table-container {
+            max-height: calc(100% - 42px);
+        }
+
+        #productModal .resize-handle {
+            position: absolute;
+            right: 1px;
+            bottom: 1px;
+            width: 22px;
+            height: 22px;
+            cursor: nwse-resize;
+            z-index: 20;
+            user-select: none;
+            background: transparent;
+        }
+
+        #productModal .resize-handle::after {
+            content: "↘";
+            position: absolute;
+            right: 1px;
+            bottom: -2px;
+            color: #000080;
+            font-size: 19px;
+            font-weight: bold;
+            line-height: 20px;
+            text-shadow: 1px 1px #ffffff;
+        }
+
+        .modal-footer {
+            padding: 8px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 6px;
+            background-color: #c0c0c0;
+            border-top: 1px solid #808080;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Aviso de orientación en celular -->
+    <div class="rotate-notice" id="rotateNotice">
+        <span>🔄 Se recomienda girar el celular horizontalmente para aprovechar mejor la interfaz.</span>
+        <button onclick="document.getElementById('rotateNotice').style.display='none'" style="background:transparent; color:#fff; border:1px solid #fff; padding:1px 6px; cursor:pointer; font-weight:bold; border-radius:3px; margin-left:8px;">✕</button>
+    </div>
+
+    <div class="window-title-bar">Simulador de facturación para personal en etapa de entrenamiento.</div>
+
+    <div class="top-menu-bar">
+        <span class="menu-item">Archivo</span>
+        <span class="menu-item">Edición</span>
+        <span class="menu-item">Ver (x)</span>
+        <span class="menu-item">Carpeta</span>
+        <span class="menu-item">Herramientas</span>
+        <span class="menu-item">Ventana</span>
+        <span class="menu-item">Ayuda</span>
+    </div>
+
+    <div class="icon-toolbar">
+        <button class="tool-btn btn-green-plus" onclick="limpiarLista()" title="Nuevo / Limpiar Todo">+</button>
+        <button class="tool-btn" title="Abrir">📂</button>
+        <button class="tool-btn" title="Cortar">✂️</button>
+        <button class="tool-btn" title="Copiar">📋</button>
+        <button class="tool-btn" title="Pegar">📄</button>
+        <div class="tool-separator"></div>
+        <button class="tool-btn" title="Deshacer">↩️</button>
+        <button class="tool-btn" title="Guardar">💾</button>
+        <div class="tool-separator"></div>
+        <div class="tool-separator" style="margin-left:-2px;"></div>
+        <button class="tool-btn btn-red-x" onclick="eliminarFilaSeleccionada()" title="Eliminar Ítem Seleccionado">X</button>
+        <div class="tool-separator"></div>
+        <div class="tool-separator" style="margin-left:-2px;"></div>
+        <button class="tool-btn" title="Ejecutar Consulta">🔍</button>
+        <button class="tool-btn" title="Imprimir">🖨️</button>
+        <button class="tool-btn" title="Ayuda">❓</button>
+        <div class="tool-separator"></div>
+        <button class="tool-btn" onclick="abrirModalStockDesdeToolbar()" title="Cantidad por Almacén">🏢</button>
+    </div>
+
+    <div class="forms-container">
+        <div class="form-header-title">
+            <span class="red-dot"></span> RM Toma de Pedidos
+        </div>
+
+        <div class="data-toolbar">
+            <span style="font-weight: bold; color: #000; font-size: 11px;">Todos los precios, clientes y demás datos que aparecen en este simulador son ficticios.</span>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Vendedor</label>
+            <input type="text" id="vendedorNombre" value="ALARCON QUISPE, JHONNY" style="width: 250px; background-color: #cccccc;" readonly>
+            <input type="text" id="vendedorInput" class="white-bg" style="width: 140px;" placeholder="NUEVO VENDEDOR..." oninput="this.value = this.value.toUpperCase()" onkeydown="handleVendedorKeyDown(event)">
+            <button class="btn-ellipsis">...</button>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Nro. Proforma</label>
+            <input type="text" class="white-bg" style="width: 120px;" oninput="this.value = this.value.toUpperCase()">
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Order Type</label>
+            <input type="text" id="orderTypeVal" value="VR B002" style="width: 180px;" readonly>
+            <button class="btn-ellipsis" onclick="abrirModalOrderType()">...</button>
+            <label style="color:white; margin-left: 10px;"><input type="checkbox"> Mostrar Todos</label>
+        </div>
+
+        <div class="form-row">
+            <label class="form-label">Lista Precio</label>
+            <input type="text" id="listaPrecioCod" value="6011" style="width: 110px;" readonly>
+            <button class="btn-ellipsis" onclick="abrirModalListaPrecio()">...</button>
+            <input type="text" id="listaPrecioDesc" value="LISTA DE PRECIO 1 - AL POR MENOR" style="width: 240px;" readonly>
+            
+            <label class="form-label" style="min-width:70px;">Nro. Pedido</label>
+            <input type="text" id="nroPedidoInput" value="12629267" style="width: 100px; text-align: center; background-color:#cccccc;" readonly>
+        </div>
+
+        <fieldset style="border: 1px solid #7f8c8d; margin-top: 8px; padding: 4px;">
+            <legend style="color: #fff; padding: 0 4px;">Artículos</legend>
+            
+            <div class="grid-container">
+                <table class="forms-table">
+                    <thead>
+                        <tr>
+                            <th style="width:12px;"></th>
+                            <th style="width:35px;">Linea</th>
+                            <th style="width:110px;">Artículo Pedido</th>
+                            <th style="width:20px;"></th>
+                            <th style="width:40px;">UDM</th>
+                            <th style="width:50px;">Cantidad</th>
+                            <th style="width:50px;">Peso</th>
+                            <th style="width:220px;">Descripción Artículo</th>
+                            <th style="width:20px;">[ ]</th>
+                            <th style="width:75px;">Precio Lista<br>Unitario</th>
+                            <th style="width:55px;">% Dscto.</th>
+                            <th style="width:40px;">Det</th>
+                            <th style="width:80px;">Tranf. Gratuita</th>
+                            <th style="width:75px;">Precio Venta<br>Unitario</th>
+                            <th style="width:80px;">Total Linea</th>
+                            <th style="width:55px;">Material<br>Servicio</th>
+                            <th style="width:40px;">Perc.</th>
+                            <th style="width:50px;">Fiscaliz.</th>
+                            <th style="width:55px;">Unidad<br>Mínima</th>
+                            <th style="width:45px;">Pack</th>
+                            <th style="width:45px;">MPack</th>
+                            <th style="width:45px;">Pallet</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Filas Generadas Dinámicamente -->
+                    </tbody>
+                    <tfoot>
+                        <tr style="background-color: #1a2b3c;">
+                            <td colspan="6" style="text-align: right; color: black; font-weight: bold; padding-right:4px;">Total Peso:</td>
+                            <td><input type="text" id="txtTotalPeso" value="0.00" style="width: 100%; text-align: right; background-color:#cccccc; color:#000000; font-weight:bold;" readonly></td>
+                            <td colspan="7" style="text-align: right; color: black; font-weight: bold; padding-right:4px;">Total a Pagar:</td>
+                            <td><input type="text" id="txtTotalFinal" value="0.00" style="width: 100%; text-align: right; font-weight: bold; background-color:#cccccc; color:#000000; font-size:12px; border: 2px solid #000080;" readonly></td>
+                            <td colspan="7"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="footer-bar">
+                <div>
+                    <button class="btn-register" onclick="abrirModalRegistroPedido()">Registrar Pedido</button>
+                </div>
+                <div style="margin-left:auto;">HTML desarrollado por el Equipo de Capacitación</div>
+            </div>
+        </fieldset>
+    </div>
+
+    <!-- Modal REGISTRO DE PEDIDO -->
+    <div class="modal-overlay" id="registroPedidoModal" style="z-index: 1500;">
+        <div class="modal-window" style="width: 580px; background-color: #5f7593; border: 2px solid #000080; color: white; margin: 0;">
+            <div class="modal-header" style="background-color: #000080;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="red-dot"></span>
+                    <span>Registro de pedido</span>
+                </div>
+            </div>
+            <div class="modal-body" style="padding: 12px; color: white;">
+                
+                <!-- Nro Documentos a generar -->
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <label>Nro. Documentos a generar</label>
+                    <input type="text" value="1" readonly style="width: 70px; background-color: #cccccc; text-align: center; font-weight: bold;">
+                </div>
+
+                <!-- Tipo de Documento -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <label style="width: 110px; text-align: right;">Tipo de Documento</label>
+                    <input type="text" id="regTipoDoc" style="width: 250px; background-color: #ffffff; font-weight: bold; pointer-events:auto; user-select:auto;" onkeydown="handleRegistroNav(event, 'regFecha')">
+                    <button class="btn-ellipsis">...</button>
+                </div>
+
+                <!-- Fecha -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Fecha</label>
+                    <input type="text" id="regFecha" readonly style="width: 180px; background-color: #cccccc;" onkeydown="handleRegistroNav(event, 'regTipoPago')">
+                </div>
+
+                <!-- Tipo de Pago -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Tipo de Pago</label>
+                    <input type="text" id="regTipoPago" class="white-bg" style="width: 200px;" oninput="this.value = this.value.toUpperCase();" onkeydown="handleRegistroNav(event, 'regTerminoPagoInput')">
+                </div>
+
+                <!-- Término de Pago -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Término de Pago</label>
+                    <input type="text" id="regTerminoPagoInput" class="white-bg" value="INMEDIATO" style="width: 200px;" 
+                        oninput="this.value = this.value.toUpperCase(); evaluarAsignarNC(); evaluarTipoPagoAuto();" 
+                        onkeydown="handleTerminoPagoKeyDown(event)">
+                    <button class="btn-ellipsis" onclick="abrirModalTerminoPago(document.getElementById('regTerminoPagoInput').value)">...</button>
+                    <button class="btn-register" style="border-radius: 10px; padding: 2px 10px; font-weight: normal;" disabled>Distribución</button>
+                </div>
+
+                <!-- Cliente -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Cliente</label>
+                    <input type="text" id="regClienteCod" readonly style="width: 100px; background-color: #cccccc;">
+                    <input type="text" id="regClienteNombre" readonly style="width: 240px; background-color: #cccccc;">
+                </div>
+
+                <!-- DNI / Ruc -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">DNI / Ruc</label>
+                    <input type="text" id="regDniRucInput" class="white-bg" style="width: 150px;" 
+                        oninput="handleDniInput(event)" 
+                        onfocus="handleDniFocus()" 
+                        onkeydown="handleDniKeyDown(event)">
+                    <button class="btn-ellipsis" onclick="abrirModalCliente()">...</button>
+                    <label style="margin-left: 10px;">Nro Consentimiento:</label>
+                    <input type="text" readonly style="width: 120px; background-color: #cccccc;">
+                </div>
+
+                <!-- Razón Social -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Razón Social</label>
+                    <input type="text" id="regRazonSocial" readonly style="width: 380px; background-color: #cccccc;">
+                </div>
+
+                <!-- Cliente Referencial -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Cliente Referencial</label>
+                    <input type="text" id="regClienteRef" readonly style="width: 380px; background-color: #cccccc;">
+                </div>
+
+                <!-- Nro. vendedor -->
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Nro. vendedor</label>
+                    <input type="text" value="13841" readonly style="width: 70px; background-color: #cccccc;">
+                    <input type="text" id="regVendedorNombre" readonly style="width: 270px; background-color: #cccccc;">
+                </div>
+
+                <!-- Moneda -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Moneda</label>
+                    <input type="text" value="PEN" readonly style="width: 60px; background-color: #cccccc; text-align: center;">
+                    <label style="margin-left: 10px;">Informacion Adicional</label>
+                    <input type="checkbox" disabled>
+                    <input type="text" readonly style="width: 130px; background-color: #cccccc;">
+                </div>
+
+                <!-- Adelanto -->
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <label style="width: 110px; text-align: right;">Adelanto</label>
+                    <input type="text" readonly style="width: 100px; background-color: #cccccc;">
+                </div>
+
+                <!-- AutoDetracción y Totales -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 4px;">
+                    <div>
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                            <label style="width: 110px; text-align: right;">AutoDetracción</label>
+                            <input type="checkbox" disabled>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <label style="width: 110px; text-align: right;">Proviene de una Nota de Crédito :</label>
+                            <input type="checkbox" id="chkProvieneNC" onchange="evaluarAsignarNC()" disabled>
+                            <!-- BOTÓN ASIGNAR NC ACTIVABLE SOLO CON CANJE NOTA DE CREDITO -->
+                            <button id="btnAsignarNC" class="btn-register" style="border-radius: 10px; padding: 2px 10px; margin-left: 6px;" onclick="abrirModalAsignarNC()" disabled>Asignar NC</button>
+                        </div>
+                    </div>
+
+                    <!-- Cuadro de Totales Inferior Derecha -->
+                    <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label>Monto Total:</label>
+                            <input type="text" id="regMontoTotal" readonly style="width: 100px; background-color: #cccccc; text-align: right; font-weight: bold;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label>N.C. aplicar:</label>
+                            <input type="text" id="regNCAplicar" value="0.00" readonly style="width: 100px; background-color: #cccccc; text-align: right;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="font-weight: bold;">Total a Pagar:</label>
+                            <input type="text" id="regTotalPagar" readonly style="width: 100px; background-color: #cccccc; text-align: right; font-weight: bold;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones Principales Inferiores -->
+                <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                    <button id="btnGenerarDoc" class="btn-register" style="padding: 4px 16px; border-radius: 10px;" onclick="generarDocumento()">Generar Documento</button>
+                    <button class="btn-register" style="padding: 4px 16px; border-radius: 10px;" onclick="cerrarModal('registroPedidoModal')">Cancelar</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal TÉRMINO DE PAGO -->
+    <div class="modal-overlay" id="terminoPagoModal" style="z-index: 2000;">
+        <div class="modal-window" style="width: 420px;">
+            <div class="modal-header">
+                <span>Término de pago</span>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:6px;">
+                    <label>Buscar </label>
+                    <input type="text" id="terminoSearchInput" class="white-bg" value="%" style="width: 80%;" 
+                        oninput="this.value = this.value.toUpperCase(); filtrarTerminosPago();"
+                        onkeydown="handleTerminoSearchKeydown(event)">
+                </div>
+                <div class="modal-table-container">
+                    <table class="modal-table">
+                        <thead>
+                            <tr><th>Description</th></tr>
+                        </thead>
+                        <tbody id="terminoPagoList">
+                            <!-- Opciones cargadas dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-register" style="border-radius:4px;" onclick="filtrarTerminosPago()">Buscar</button>
+                <button class="btn-register" style="border-radius:4px;" onclick="aceptarTerminoPagoModal()">Aceptar</button>
+                <button class="btn-register" style="border-radius:4px;" onclick="cerrarModal('terminoPagoModal')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal BÚSQUEDA DE CLIENTES -->
+    <div class="modal-overlay" id="clienteModal" style="z-index: 2100;">
+        <div class="modal-window" style="width: 580px;">
+            <div class="modal-header">
+                <span>Lista de Clientes</span>
+                <button onclick="cerrarModal('clienteModal')" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:6px;">
+                    <label>Buscar (DNI / RUC / Razón Social) (% comodín):</label>
+                    <input type="text" id="clienteSearchInput" class="white-bg" style="width: 100%; margin-top:4px;" placeholder="Ej: 20600% o GONZALES" oninput="this.value = this.value.toUpperCase(); ejecutarBusquedaCliente();" onkeydown="handleClienteModalKeyDown(event)">
+                </div>
+                <div class="modal-table-container">
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 80px;">Código</th>
+                                <th style="width: 110px;">DNI / RUC</th>
+                                <th>Razón Social / Nombre</th>
+                            </tr>
+                        </thead>
+                        <tbody id="clienteList">
+                            <!-- Resultados -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-register" style="border-radius:4px;" onclick="aceptarSeleccionCliente()">Aceptar</button>
+                <button class="btn-register" style="border-radius:4px;" onclick="cerrarModal('clienteModal')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Cantidad por Almacen -->
+    <div class="modal-overlay" id="stockModal">
+        <div class="modal-window" style="width: 620px; background-color: #5f7593; border: 2px solid #000080; color: white;">
+            <div class="modal-header" style="background-color: #000080;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="red-dot"></span>
+                    <span>Cantidad por Almacen</span>
+                </div>
+                <button onclick="cancelarStockModal()" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body" style="padding: 10px; color: white;">
+                <div style="display: flex; gap: 6px; margin-bottom: 6px; align-items: center;">
+                    <label style="min-width: 110px; text-align: right;">Artículo</label>
+                    <input type="text" id="stockModalCode" readonly style="width: 110px; background-color: #cccccc; font-weight:bold;">
+                    <input type="text" id="stockModalDesc" readonly style="width: 360px; background-color: #cccccc;">
+                </div>
+                <div style="display: flex; gap: 6px; margin-bottom: 4px; align-items: center;">
+                    <label style="min-width: 110px; text-align: right;">Cantidad Solicitada</label>
+                    <input type="text" id="stockModalQtyReq" readonly style="width: 70px; background-color: #cccccc; text-align: right; font-weight:bold;">
+                </div>
+                <div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;">
+                    <label style="min-width: 110px; text-align: right;">Cantidad Primaria</label>
+                    <input type="text" id="stockModalQtyPrim" readonly style="width: 70px; background-color: #cccccc; text-align: right; font-weight:bold;">
+                </div>
+
+                <fieldset style="border: 1px solid #a0a0a0; padding: 6px; margin-bottom: 10px;">
+                    <legend style="color: #fff; font-weight: normal; padding: 0 4px;">Cantidad por almacen</legend>
+                    <table class="forms-table" style="width: 100%; border-collapse: separate; border-spacing: 1px; background-color:#2c3e50;">
+                        <thead>
+                            <tr style="background-color: #1a2b3c; color: white;">
+                                <th style="font-size:10px; padding:3px; text-align:left;">Almacen</th>
+                                <th style="font-size:10px; padding:3px; text-align:left;">Localizador</th>
+                                <th style="font-size:10px; padding:3px; text-align:right;">Stock</th>
+                                <th style="font-size:10px; padding:3px; text-align:right;">Asignado</th>
+                                <th style="font-size:10px; padding:3px; text-align:center;">Nro Pedido<br>Movimiento</th>
+                                <th style="font-size:10px; padding:3px; text-align:right;">Disponible</th>
+                                <th style="font-size:10px; padding:3px; text-align:right;">Cantidad</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><input type="text" value="RMTRM" readonly style="width:100%; background:#ccc;"></td>
+                                <td><input type="text" value="0212.00.00.00" readonly style="width:100%; background:#ccc;"></td>
+                                <td><input type="text" id="stockModalStock" readonly style="width:100%; background:#ccc; text-align:right; font-weight:bold;"></td>
+                                <td><input type="text" value="0" readonly style="width:100%; background:#ccc; text-align:right;"></td>
+                                <td><input type="text" value="" readonly style="width:100%; background:#ccc;"></td>
+                                <td><input type="text" id="stockModalDisp" readonly style="width:100%; background:#ccc; text-align:right; font-weight:bold;"></td>
+                                <td>
+                                    <input type="text" id="stockModalQtyInput" style="width:100%; background:#ffffcd; text-align:right; font-weight:bold;"
+                                        oninput="this.value = this.value.replace(/[^0-9.,]/g, ''); actualizarTotalDistribuir(this.value);"
+                                        onkeydown="handleStockQtyKeydown(event)">
+                                </td>
+                            </tr>
+                            <tr><td colspan="7" style="height:18px; background:#ccc;"></td></tr>
+                            <tr><td colspan="7" style="height:18px; background:#ccc;"></td></tr>
+                            <tr><td colspan="7" style="height:18px; background:#ccc;"></td></tr>
+                        </tbody>
+                    </table>
+                    <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:8px;">
+                        <label style="font-weight:normal; color:white;">Total a Distribuir</label>
+                        <input type="text" id="stockModalTotalDist" readonly style="width:80px; background:#ccc; text-align:right; font-weight:bold;">
+                    </div>
+                </fieldset>
+
+                <div style="display:flex; justify-content:center; gap:20px; margin-top:12px; margin-bottom:4px;">
+                    <button id="btnAceptarStock" class="btn-register" style="width:110px; padding:3px 0;" onclick="confirmarStockModal()" onkeydown="handleBtnAceptarKeydown(event)">Aceptar</button>
+                    <button class="btn-register" style="width:110px; padding:3px 0;" onclick="cancelarStockModal()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Advertencia Oficial Oracle Forms -->
+    <div class="modal-overlay" id="alertModal" style="z-index: 2500;">
+        <div class="modal-window" style="width: 380px; background-color: #5f7593; border: 2px solid #000080; color: white;">
+            <div class="modal-header" style="background-color: #000080;">
+                <span>Forms</span>
+                <button onclick="cerrarAlertModal()" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body" style="padding: 15px; display: flex; align-items: center; gap: 15px;">
+                <span style="font-size: 32px;">🔔</span>
+                <span id="alertModalText" style="font-size: 11px; color: #ffffff; line-height: 1.3;">
+                    La cantidad por almacen no puede ser diferente a la solicitada por el cliente
+                </span>
+            </div>
+            <div style="padding: 8px 15px; display: flex; justify-content: flex-end; background-color: #5f7593;">
+                <button id="btnAlertOk" class="btn-register" style="width: 70px; padding: 2px 0;" onclick="cerrarAlertModal()" onkeydown="handleAlertOkKeydown(event)">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal ASIGNA NOTAS DE CRÉDITO -->
+    <div class="modal-overlay" id="ncModal" style="z-index: 2000;">
+        <div class="modal-window" style="width: 720px; background-color: #5f7593; border: 2px solid #000080; color: white; overflow: hidden;">
+            <div class="modal-header" id="ncHeader" style="background-color: #000080;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="red-dot"></span>
+                    <span>Asigna Notas de Crédito</span>
+                </div>
+                <button onclick="cerrarModal('ncModal')" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body" style="padding: 14px 16px; color: white;">
+                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+                    <label>Fecha</label>
+                    <input type="text" id="ncFecha" class="nc-input" style="width: 98px;" oninput="this.value = this.value.toUpperCase()" onkeydown="ncKeydown(event, 'ncSerie')">
+                    <button class="btn-ellipsis" style="margin-left: -8px;" onclick="abrirCalendarioNC()">...</button>
+                    <label style="margin-left: 16px;">Serie</label>
+                    <input type="text" id="ncSerie" class="nc-input" style="width: 118px;" oninput="this.value = this.value.toUpperCase()" onkeydown="ncKeydown(event, 'ncCorrelativo')">
+                    <label style="margin-left: 16px;">Correlativo</label>
+                    <input type="text" id="ncCorrelativo" class="nc-input" style="width: 118px;" onkeydown="ncKeydown(event, null)">
+                    <button class="btn-register" style="margin-left: 12px; border-radius: 10px; padding: 3px 22px;" onclick="asignarNC()">Asignar</button>
+                </div>
+
+                <fieldset style="border: 1px solid #3f5068; padding: 4px 8px 8px 8px; margin: 0;">
+                    <legend style="padding: 0 4px;">Asignados</legend>
+                    <table class="nc-grid">
+                        <thead>
+                            <tr>
+                                <th style="width: 13%;">Serie</th>
+                                <th style="width: 15%;">Correlativo</th>
+                                <th style="width: 15%;">Fecha</th>
+                                <th style="width: 11%;">Moneda</th>
+                                <th style="width: 15%;">Monto</th>
+                                <th style="width: 15%;">Saldo</th>
+                                <th style="width: 16%;">Por Aplicar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ncGridBody"></tbody>
+                    </table>
+                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 6px;">
+                        <label>Total por Aplicar</label>
+                        <input type="text" id="ncTotalAplicar" class="nc-grid-input" style="width: 118px; text-align: right;" readonly>
+                    </div>
+                </fieldset>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 12px;">
+                    <button class="btn-register" style="border-radius: 10px; padding: 3px 22px;">Eliminar</button>
+                    <button class="btn-register" style="border-radius: 10px; padding: 3px 22px;" onclick="aplicarNC()">Aplicar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendario para la fecha de la Nota de Crédito -->
+    <div class="modal-overlay" id="calModal" style="z-index: 2200; background: rgba(0,0,0,0.15);">
+        <div class="modal-window" style="width: 240px; background-color: #5f7593; border: 2px solid #000080; color: white; overflow: hidden;">
+            <div class="modal-header" style="background-color: #000080;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                    <span class="red-dot"></span>
+                    <span>Calendar</span>
+                </div>
+                <button onclick="cerrarCalendarioNC()" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body" style="padding: 8px; color: white;">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+                    <div>
+                        <button class="cal-nav" onclick="calMover(-12)" title="Año anterior">&laquo;</button>
+                        <button class="cal-nav" onclick="calMover(-1)" title="Mes anterior">&lsaquo;</button>
+                    </div>
+                    <span id="calTitulo" style="background:#a8c6ee; color:#000080; font-weight:bold; padding:2px 8px; min-width:100px; text-align:center;"></span>
+                    <div>
+                        <button class="cal-nav" onclick="calMover(1)" title="Mes siguiente">&rsaquo;</button>
+                        <button class="cal-nav" onclick="calMover(12)" title="Año siguiente">&raquo;</button>
+                    </div>
+                </div>
+                <table class="cal-grid">
+                    <thead><tr><th>S</th><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th></tr></thead>
+                    <tbody id="calBody"></tbody>
+                </table>
+                <div id="calSelTexto" style="background:#a8c6ee; color:#000080; font-weight:bold; text-align:center; padding:4px 0; margin-top:8px;"></div>
+                <div style="display:flex; justify-content:space-around; margin-top:8px;">
+                    <button class="btn-register" style="border-radius:10px; width:90px; padding:3px 0;" onclick="calAceptar()">OK</button>
+                    <button class="btn-register" style="border-radius:10px; width:90px; padding:3px 0;" onclick="cerrarCalendarioNC()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Búsqueda de Productos -->
+    <div class="modal-overlay" id="productModal">
+        <div class="modal-window" style="width: 95%;">
+            <div class="modal-header">
+                <span>Lista de Artículo</span>
+                <button onclick="cerrarModal('productModal')" style="background:red; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body">
+                <label>Buscar Producto (% comodín):</label>
+                <input type="text" id="modalSearchInput" class="white-bg" style="width: 100%; margin-top:4px;" placeholder="Ej: TRIPLAY%OKUME" oninput="this.value = this.value.toUpperCase();" onkeydown="handleModalKeyDown(event)">
+                
+                <div class="modal-table-container">
+                    <table class="modal-table">
+                        <thead>
+                            <tr>
+                                <th>Articulo</th>
+                                <th>Desc</th>
+                                <th>Cantidad</th>
+                                <th>Oferta</th>
+                                <th>ALM TAB</th>
+                                <th>CD Unicachi</th>
+                                <th>OUTLET</th>
+                                <th>Oferta UNI</th>
+                                <th>UDM</th>
+                                <th>Precio</th>
+                                <th>Descripción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalProductList">
+                            <!-- Resultados -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-register" onclick="aceptarSeleccionModal()">Aceptar</button>
+                <button class="btn-register" onclick="cerrarModal('productModal')">Cancelar</button>
+            </div>
+            <div class="resize-handle" title="Arrastrar para ampliar o reducir"></div>
+        </div>
+    </div>
+
+    <!-- Modal Genérico para Order Type y Lista de Precios -->
+    <div class="modal-overlay" id="genericModal">
+        <div class="modal-window" style="width: 420px;">
+            <div class="modal-header">
+                <span id="genericModalTitle">Tipos de Pedidos</span>
+                <button onclick="cerrarModal('genericModal')" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom:6px;">
+                    <label>Buscar </label>
+                    <input type="text" id="genericSearchInput" class="white-bg" value="%" style="width: 80%;" oninput="this.value = this.value.toUpperCase()">
+                </div>
+                <div class="modal-table-container">
+                    <table class="modal-table">
+                        <thead id="genericModalHeader">
+                            <tr><th>Name</th></tr>
+                        </thead>
+                        <tbody id="genericModalList"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-register" style="border-radius:4px;">Buscar</button>
+                <button class="btn-register" style="border-radius:4px;" onclick="aceptarModalGenerico()">Aceptar</button>
+                <button class="btn-register" style="border-radius:4px;" onclick="cerrarModal('genericModal')">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TOTAL_ROWS = 10;
+        let activeRowIndex = 0;
+        let alertCallback = null;
+        
+        const terminosPagoLista = [
+            "ANTICIPO",
+            "CANJE NOTA DE CREDITO",
+            "DEPOSITO EN CUENTA",
+            "EFECTIVO POR DEPOSITAR",
+            "INMEDIATO",
+            "PAGO 07 DIAS",
+            "PAGO 30 DIAS",
+            "PAGOS VARIOS",
+            "TARJETA PAGO LINK",
+            "TARJETA VISA/MAST/CRED/DEB"
+        ];
+        let selectedTerminoPagoIndex = 0;
+
+        /* CATÁLOGO DE CLIENTES */
+        const clienteCatalog = [
+            // Clientes para BOLETA (DNI de 8 dígitos)
+            { code: "100001", dniRuc: "99999999", razonSocial: "CLIENTE GENERICO" },
+            { code: "105230", dniRuc: "45829384", razonSocial: "MENDOZA FLORES, CARLOS ALBERTO" },
+            { code: "105232", dniRuc: "72849102", razonSocial: "GARCIA ROJAS, LUIS ENRIQUE" },
+            { code: "105234", dniRuc: "41928374", razonSocial: "TORRES VALENCIA, MARIA ELENA" },
+            { code: "105236", dniRuc: "00928374", razonSocial: "RAMIREZ CHAVEZ, JORGE LUIS" },
+            { code: "105238", dniRuc: "48201938", razonSocial: "QUISPE GONZALES, HERNAN ALONSO" },
+            { code: "105240", dniRuc: "12345678", razonSocial: "ALVAREZ CASTILLO, PEDRO LUIS" },
+            { code: "105241", dniRuc: "87654321", razonSocial: "SANCHEZ PRADO, ROSA MARIA" },
+            
+            // Clientes para FACTURA (RUC de 11 dígitos)
+            { code: "105231", dniRuc: "20601234567", razonSocial: "CORPORACION MADERERA DEL PERU S.A.C." },
+            { code: "105233", dniRuc: "20554321098", razonSocial: "INDUSTRIAS DEL MUEBLE Y MELAMINA E.I.R.L." },
+            { code: "105235", dniRuc: "20481920384", razonSocial: "CONSTRUCTORA Y ARQUITECTURA S.A.C." },
+            { code: "105237", dniRuc: "20394857102", razonSocial: "DECORACIONES Y ACABADOS GENERALES S.R.L." },
+            { code: "105239", dniRuc: "20100054321", razonSocial: "DISTRIBUIDORA DE MADERAS EL CEDRO S.A.C." },
+            { code: "105242", dniRuc: "10458293841", razonSocial: "MENDOZA FLORES, CARLOS ALBERTO" },
+            { code: "105243", dniRuc: "10728491023", razonSocial: "GARCIA ROJAS, LUIS ENRIQUE" }
+        ];
+        let filteredClientes = [];
+        let selectedClienteIndex = 0;
+
+        let productCatalog = [
+            { code: "FER.BI.000217", udm: "Par", pesoUnit: 0, description: "BISAGRA 110º COPA 35MM LATERAL LECCO  LN9-H=0 CN-09", price: 1.84, minUnit: 1, pack: 100, mpack: 0, pallet: 4500, cantidad: 515, oferta: 0, almTab: 0, cdUnicachi: 6695, outlet: 0, ofertaUni: 0 },
+            { code: "FER.BI.000218", udm: "Par", pesoUnit: 0, description: "BISAGRA 110º COPA 35MM CENTRAL LECCO  LN8-H=0 CN-08", price: 1.84, minUnit: 1, pack: 100, mpack: 0, pallet: 6000, cantidad: 508, oferta: 0, almTab: 0, cdUnicachi: 6604, outlet: 0, ofertaUni: 0 },
+            { code: "FER.BI.000219", udm: "Par", pesoUnit: 0, description: "BISAGRA 110º COPA 35MM INTERIOR LECCO  LN7-H=0 CN-07", price: 1.84, minUnit: 1, pack: 100, mpack: 0, pallet: 4500, cantidad: 449, oferta: 3, almTab: 0, cdUnicachi: 5837, outlet: 0, ofertaUni: 0 },
+            { code: "FER.TO.000248", udm: "Cto", pesoUnit: 0, description: "TORNILLO LECCO  3.5 X 17 MM", price: 1.47, minUnit: 1, pack: 10, mpack: 240, pallet: 9600, cantidad: 756, oferta: 0, almTab: 0, cdUnicachi: 9828, outlet: 0, ofertaUni: 0 },
+            { code: "FER.TO.000252", udm: "Cto", pesoUnit: 0, description: "TORNILLO LECCO  4.0 X 30 MM", price: 2.62, minUnit: 1, pack: 10, mpack: 160, pallet: 6400, cantidad: 675, oferta: 7, almTab: 0, cdUnicachi: 8775, outlet: 0, ofertaUni: 0 },
+            { code: "FER.TO.000256", udm: "Cto", pesoUnit: 0, description: "TORNILLO LECCO  4.0 X 50 MM", price: 4.14, minUnit: 1, pack: 5, mpack: 60, pallet: 2400, cantidad: 549, oferta: 5, almTab: 0, cdUnicachi: 7137, outlet: 0, ofertaUni: 0 },
+            { code: "SNT.CO.000230", udm: "Gl", pesoUnit: 0, description: "COLA ULTRA PEGSA X 4 KG", price: 35.63, minUnit: 1, pack: 4, mpack: 0, pallet: 0, cantidad: 92, oferta: 0, almTab: 0, cdUnicachi: 1196, outlet: 0, ofertaUni: 0 },
+            { code: "SNT.CO.000090", udm: "Bd4", pesoUnit: 0, description: "COLA ULTRA TEKNO  X 4 KL", price: 35.31, minUnit: 1, pack: 4, mpack: 0, pallet: 180, cantidad: 318, oferta: 0, almTab: 0, cdUnicachi: 4134, outlet: 0, ofertaUni: 0 },
+            { code: "MAD.TR.000068", udm: "Pl", pesoUnit: 0, description: "TRIPLAY LUPUNA C/C TRIMASA 1.22 X 2.44  04 MM", price: 32.59, minUnit: 1, pack: 260, mpack: 0, pallet: 0, cantidad: 38, oferta: 8, almTab: 0, cdUnicachi: 494, outlet: 0, ofertaUni: 0 },
+            { code: "MAD.TR.000106", udm: "Pl", pesoUnit: 0, description: "TRIPLAY COPAIBA TRIMASA 1.22 X 2.44  04 MM", price: 32.76, minUnit: 1, pack: 260, mpack: 0, pallet: 0, cantidad: 45, oferta: 0, almTab: 0, cdUnicachi: 512, outlet: 0, ofertaUni: 0 }
+        ];
+
+        let gridData = Array.from({ length: TOTAL_ROWS }, () => ({
+            code: "", udm: "", qty: "", peso: "0.00", description: "", priceList: "", dscto: "", det: "Si", transf: "", priceVenta: "", totalLinea: "0.00",
+            matServ: false, perc: false, fisc: false, minUnit: "", pack: "", mpack: "", pallet: "",
+            stockConfirmed: false
+        }));
+
+        let filteredModalProducts = [];
+        let selectedModalIndex = 0;
+        let genericCallback = null;
+        let selectedGenericItem = null;
+
+        /* ===== Catálogo de productos desde Google Sheets (lectura por <script>: funciona con file://) =====
+           Reemplaza productCatalog con los datos de la hoja. La hoja debe estar compartida como
+           "Cualquier persona con el enlace: Lector". Si falla, se mantiene el catálogo incluido en este archivo. */
+        const SHEET_ID  = '1wzx4q4Cy4j7Nl-AdDhwUOKnuwMVr_cii';
+        const SHEET_GID = '1112812704';
+
+        // Campo -> [nombres de encabezado aceptados, posición de respaldo (columna A=0)]
+        const GS_CAMPOS = {
+            code:       [['codigo', 'articulo', 'item'], 0],
+            udm:        [['udm', 'unidad', 'um'], 1],
+            description:[['descripcion', 'nombre'], 2],
+            cantidad:   [['cantidad', 'stock'], 3],
+            oferta:     [['oferta'], 4],
+            almTab:     [['almtab'], 5],
+            cdUnicachi: [['cdunicachi'], 6],
+            outlet:     [['outlet'], 7],
+            ofertaUni:  [['ofertauni'], 8],
+            minUnit:    [['unidadminima', 'minima'], 9],
+            pack:       [['pack'], 10],
+            mpack:      [['mpack'], 11],
+            pallet:     [['pallet'], 12],
+            price:      [['precio', 'preciolista'], 13],
+            priceMayor: [['precioalpormayor', 'preciomayor', 'preciopormayor', 'pormayor'], 14],
+            pesoUnit:   [['peso', 'pesounit'], -1]
+        };
+        const gsNorm = s => (s ?? '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        function gsCargar() {
+            return new Promise((res, rej) => {
+                const cb = '__prodCb' + Date.now();
+                const s = document.createElement('script');
+                const timer = setTimeout(() => {
+                    limpiar();
+                    rej(new Error('Sin respuesta de Google (¿hoja compartida con el enlace?)'));
+                }, 25000);
+                function limpiar() { clearTimeout(timer); delete window[cb]; s.remove(); }
+                window[cb] = json => {
+                    try {
+                        limpiar();
+                        if (json.status === 'error') {
+                            throw new Error((json.errors && json.errors[0] && (json.errors[0].detailed_message || json.errors[0].message)) || 'Error de Google Sheets');
+                        }
+                        const cols = json.table.cols, filas = json.table.rows;
+                        const etiquetas = cols.map(c => gsNorm(c.label));
+                        // Localizar cada campo por nombre de encabezado; si no aparece, por su posición habitual
+                        const idx = {};
+                        Object.keys(GS_CAMPOS).forEach(k => {
+                            const nombres = GS_CAMPOS[k][0];
+                            let i = etiquetas.findIndex(l => nombres.includes(l));
+                            if (i < 0) i = GS_CAMPOS[k][1];
+                            idx[k] = i;
+                        });
+                        if (idx.code < 0) throw new Error('No se encontró la columna de códigos');
+                        // Valor de celda: para números se usa el valor real (no el texto con coma decimal)
+                        const cel = (c, i) => (i < 0 || !c[i]) ? '' : (c[i].v != null ? c[i].v : (c[i].f != null ? c[i].f : ''));
+                        const txt = (c, i) => String(cel(c, i)).trim();
+                        const num = (c, i) => {
+                            const v = cel(c, i);
+                            if (typeof v === 'number') return v;
+                            const n = parseFloat(String(v).trim().replace(/\s/g, '').replace(',', '.'));
+                            return isNaN(n) ? 0 : n;
+                        };
+                        const cat = [];
+                        filas.forEach(r => {
+                            const c = r.c || [];
+                            const code = txt(c, idx.code).toUpperCase();
+                            if (!code) return;
+                            cat.push({
+                                code,
+                                udm: txt(c, idx.udm),
+                                pesoUnit: num(c, idx.pesoUnit),
+                                description: txt(c, idx.description),
+                                price: num(c, idx.price),
+                                priceMayor: num(c, idx.priceMayor),
+                                minUnit: txt(c, idx.minUnit) || '1',
+                                pack: txt(c, idx.pack) || '0',
+                                mpack: txt(c, idx.mpack) || '0',
+                                pallet: txt(c, idx.pallet) || '0',
+                                cantidad: num(c, idx.cantidad),
+                                oferta: num(c, idx.oferta),
+                                almTab: num(c, idx.almTab),
+                                cdUnicachi: num(c, idx.cdUnicachi),
+                                outlet: num(c, idx.outlet),
+                                ofertaUni: num(c, idx.ofertaUni)
+                            });
+                        });
+                        console.info('Columnas detectadas (posición por campo): ' + JSON.stringify(idx) +
+                                     ' | encabezados recibidos: ' + JSON.stringify(cols.map(c => c.label)));
+                        res(cat);
+                    } catch (e) { rej(e); }
+                };
+                s.onerror = () => { limpiar(); rej(new Error('No se pudo cargar el script de Google')); };
+                s.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json;responseHandler:' + cb +
+                        '&headers=1' + (SHEET_GID ? '&gid=' + SHEET_GID : '') + '&_=' + Date.now();
+                document.head.appendChild(s);
+            });
+        }
+
+        window.addEventListener('load', () => {
+            gsCargar().then(cat => {
+                if (!cat.length) throw new Error('La hoja no tiene productos');
+                productCatalog = cat;
+                console.info('Catálogo cargado desde Google Sheets: ' + cat.length + ' productos');
+            }).catch(e => console.warn('No se pudo leer Google Sheets; se usa el catálogo incluido en el archivo.', e.message));
+        });
+
+        window.onload = function() {
+            inicializarTabla();
+        };
+
+        /* Captura global de teclado para dar Enter en la ventana emergente informativa */
+        window.addEventListener('keydown', function(event) {
+            const alertModal = document.getElementById('alertModal');
+            if (alertModal && alertModal.classList.contains('active')) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cerrarAlertModal();
+                }
+            }
+        }, true);
+
+        function normalizeText(str) {
+            return str ? str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim() : "";
+        }
+
+        function esBoletaActual() {
+            const regTipoDoc = document.getElementById('regTipoDoc');
+            const tipoDoc = regTipoDoc ? regTipoDoc.value.toUpperCase() : '';
+            return tipoDoc.includes("BOLETA") || tipoDoc.includes("B002") || tipoDoc.includes("B003") || tipoDoc.startsWith("B");
+        }
+
+        function handleVendedorKeyDown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const nuevoVendedor = event.target.value.trim();
+                if (nuevoVendedor) {
+                    document.getElementById("vendedorNombre").value = nuevoVendedor.toUpperCase();
+                    event.target.value = "";
+                }
+            }
+        }
+
+        function inicializarTabla() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            gridData.forEach((row, i) => {
+                const tr = document.createElement('tr');
+                const isActiveRow = (i === activeRowIndex);
+                const hasItem = (row.code.trim() !== "");
+                
+                if (isActiveRow) tr.classList.add('selected-row');
+
+                let codeBg = '#cccccc';
+                let qtyBg = '#cccccc';
+                let dsctoBg = '#cccccc';
+                let otherBg = '#cccccc';
+
+                if (isActiveRow) {
+                    codeBg = '#ffeea8';
+                    qtyBg = '#ffeea8';
+                    if (hasItem) {
+                        dsctoBg = '#ffffff';
+                    }
+                } else {
+                    if (hasItem) {
+                        qtyBg = '#ffffff';
+                        dsctoBg = '#ffffff';
+                    }
+                }
+
+                tr.onclick = () => seleccionarFila(i);
+
+                tr.innerHTML = `
+                    <td><div class="select-indicator"></div></td>
+                    <td style="text-align: center; font-weight: bold;">${i + 1}</td>
+                    <td>
+                        <input type="text" id="code_${i}" class="grid-input" value="${row.code}"
+                            style="background-color: ${codeBg};"
+                            onfocus="seleccionarFila(${i})"
+                            onblur="actualizarCodigoDirecto(${i}, this.value)"
+                            oninput="this.value = this.value.toUpperCase()"
+                            onkeydown="handleCodeKeydown(${i}, event, this.value)">
+                    </td>
+                    <td><button class="btn-ellipsis" onclick="abrirModalProducto(${i})">...</button></td>
+                    <td><input type="text" id="udm_${i}" class="grid-input" value="${row.udm}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                    <td>
+                        <input type="text" id="qty_${i}" class="grid-input" value="${row.qty}" style="text-align:right; background-color: ${qtyBg};"
+                            onfocus="seleccionarFila(${i})"
+                            oninput="this.value = this.value.replace(/[^0-9.,]/g, ''); actualizarValores(${i}, 'qty', this.value)"
+                            onkeydown="handleNavigationKeydown(${i}, event, 'qty')">
+                    </td>
+                    <td><input type="text" id="peso_${i}" class="grid-input" value="${row.peso}" style="text-align:right; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="desc_${i}" class="grid-input" value="${String(row.description).replace(/"/g, '&quot;')}" style="background-color: ${otherBg};" readonly></td>
+                    <td style="text-align:center;">Y</td>
+                    <td><input type="text" id="priceList_${i}" class="grid-input" value="${row.priceList}" style="text-align:right; background-color: ${otherBg};" readonly></td>
+                    <td>
+                        <input type="text" id="dscto_${i}" class="grid-input" value="${row.dscto}" style="text-align:right; background-color: ${dsctoBg};" 
+                            onfocus="seleccionarFila(${i})" 
+                            oninput="this.value = this.value.replace(/[^0-9.,]/g, ''); actualizarValores(${i}, 'dscto', this.value)">
+                    </td>
+                    <td><input type="text" id="det_${i}" class="grid-input" value="${row.det}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="transf_${i}" class="grid-input" value="${row.transf}" style="background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="priceVenta_${i}" class="grid-input" value="${row.priceVenta}" style="text-align:right; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="totalLinea_${i}" class="grid-input" value="${row.totalLinea}" style="text-align:right; background-color: ${otherBg};" readonly></td>
+                    <td><input type="checkbox" class="grid-chk" ${row.matServ ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="grid-chk" ${row.perc ? 'checked' : ''}></td>
+                    <td><input type="checkbox" class="grid-chk" ${row.fisc ? 'checked' : ''}></td>
+                    <td><input type="text" id="minUnit_${i}" class="grid-input" value="${row.minUnit}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="pack_${i}" class="grid-input" value="${row.pack}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="mpack_${i}" class="grid-input" value="${row.mpack}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                    <td><input type="text" id="pallet_${i}" class="grid-input" value="${row.pallet}" style="text-align:center; background-color: ${otherBg};" readonly></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            calcularTotales();
+        }
+
+        function seleccionarFila(index) {
+            if (activeRowIndex !== index) {
+                const currentRow = gridData[activeRowIndex];
+                
+                if (currentRow.code.trim() !== "") {
+                    const prod = productCatalog.find(p => p.code === currentRow.code);
+                    const maxStock = prod ? prod.cantidad : 0;
+                    const val = parseFloat(currentRow.qty);
+
+                    if (isNaN(val) || val <= 0 || val > maxStock) {
+                        setTimeout(() => {
+                            const el = document.getElementById(`qty_${activeRowIndex}`);
+                            if(el) {
+                                el.focus();
+                                el.select();
+                            }
+                        }, 10);
+                        return;
+                    }
+                }
+
+                const primeraFilaVacia = gridData.findIndex(r => r.code.trim() === "");
+                if (primeraFilaVacia !== -1 && index > primeraFilaVacia) {
+                    index = primeraFilaVacia; 
+                }
+
+                activeRowIndex = index;
+                inicializarTabla();
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                    const newCatalog = jsonData.map(row => {
+                        const keys = Object.keys(row);
+                        const getVal = (names, defVal = "") => {
+                            for (let n of names) {
+                                const found = keys.find(k => k.trim().toLowerCase() === n.toLowerCase());
+                                if (found && row[found] !== undefined && row[found] !== "") return String(row[found]).trim();
+                            }
+                            return defVal;
+                        };
+                        return {
+                            code: getVal(["codigo", "código", "articulo", "item"]).toUpperCase(),
+                            udm: getVal(["udm", "unidad", "um"], "UN").toUpperCase(),
+                            pesoUnit: parseFloat(getVal(["peso", "pesounit"], "0")) || 0,
+                            description: getVal(["descripcion", "descripción", "nombre"]).toUpperCase(),
+                            price: parseFloat(getVal(["precio", "preciolista"], "0")) || 0,
+                            priceMayor: parseFloat(getVal(["precio al por mayor", "precio mayor", "precio por mayor"], "0")) || 0,
+                            minUnit: getVal(["unidadminima", "minima", "unidad mínima"], "1"),
+                            pack: getVal(["pack"], "0"),
+                            mpack: getVal(["mpack", "m.pack"], "0"),
+                            pallet: getVal(["pallet"], "0"),
+                            cantidad: parseFloat(getVal(["cantidad"], "0")) || 0,
+                            oferta: parseFloat(getVal(["oferta"], "0")) || 0,
+                            almTab: parseFloat(getVal(["alm tab"], "0")) || 0,
+                            cdUnicachi: parseFloat(getVal(["cd unicachi"], "0")) || 0,
+                            outlet: parseFloat(getVal(["outlet"], "0")) || 0,
+                            ofertaUni: parseFloat(getVal(["oferta uni"], "0")) || 0
+                        };
+                    }).filter(p => p.code !== "");
+
+                    if (newCatalog.length > 0) {
+                        productCatalog = newCatalog;
+                        document.getElementById("uploadStatus").innerText = `✔ ${newCatalog.length} artículos cargados`;
+                        alert(`¡Catálogo cargado con éxito! (${newCatalog.length} productos)`);
+                    }
+                } catch (err) {
+                    alert("Error al leer el archivo Excel: " + err.message);
+                }
+            };
+            reader.readAsBuffer ? reader.readAsBuffer(file) : reader.readAsArrayBuffer(file);
+        }
+
+        function actualizarCodigoDirecto(index, value) {
+            value = value.trim().toUpperCase();
+            if (!value) {
+                if (gridData[index].code !== "") limpiarFila(index);
+                return;
+            }
+            
+            if (gridData[index].code.toUpperCase() === value) {
+                return; 
+            }
+
+            const match = productCatalog.find(p => p.code.toLowerCase() === value.toLowerCase());
+            if (match) {
+                seleccionarProductoParaFila(index, match);
+            }
+        }
+
+        function handleCodeKeydown(index, event, value) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const trimmedValue = value.trim();
+                
+                // Si el casillero de artículo está vacío, salta a la cantidad directamente
+                if (trimmedValue === "") {
+                    setTimeout(() => {
+                        const qtyInput = document.getElementById(`qty_${index}`);
+                        if (qtyInput) qtyInput.focus();
+                    }, 10);
+                    return;
+                }
+
+                const match = productCatalog.find(p => p.code.toLowerCase() === trimmedValue.toLowerCase());
+                if (match) {
+                    if (gridData[index].code.toUpperCase() === match.code.toUpperCase()) {
+                        setTimeout(() => {
+                            const qtyInput = document.getElementById(`qty_${index}`);
+                            if (qtyInput) qtyInput.focus();
+                        }, 10);
+                        return;
+                    }
+                    
+                    const exito = seleccionarProductoParaFila(index, match);
+                    if (exito) {
+                        setTimeout(() => {
+                            const qtyInput = document.getElementById(`qty_${index}`);
+                            if (qtyInput) qtyInput.focus();
+                        }, 10);
+                    }
+                } else {
+                    abrirModalProducto(index, value);
+                }
+            } else if (event.key === "ArrowDown") {
+                event.preventDefault();
+                moverFocoFila(index + 1, 'code');
+            } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                moverFocoFila(index - 1, 'code');
+            }
+        }
+
+        function handleNavigationKeydown(index, event, field) {
+            if (field === 'qty' && event.key === "Enter") {
+                event.preventDefault();
+                const row = gridData[index];
+                
+                // Si en artículo pedido no hay nada escrito, salta de regreso a artículo pedido
+                if (row.code.trim() === "") {
+                    setTimeout(() => {
+                        const codeInput = document.getElementById(`code_${index}`);
+                        if (codeInput) codeInput.focus();
+                    }, 10);
+                    return;
+                }
+
+                let val = parseFloat(row.qty);
+                const prod = productCatalog.find(p => p.code === row.code);
+                const maxStock = prod ? prod.cantidad : 0;
+
+                if (isNaN(val) || val <= 0 || val > maxStock) {
+                    const qtyInput = document.getElementById(`qty_${index}`);
+                    if (qtyInput) {
+                        qtyInput.focus();
+                        qtyInput.select();
+                    }
+                    return;
+                }
+
+                abrirModalStock(index);
+                return;
+            }
+
+            if (field === 'qty' && (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Tab")) {
+                const currentRow = gridData[index];
+                const prod = productCatalog.find(p => p.code === currentRow.code);
+                const maxStock = prod ? prod.cantidad : 0;
+                const val = parseFloat(currentRow.qty);
+
+                if (isNaN(val) || val <= 0 || val > maxStock) {
+                    event.preventDefault();
+                    return; 
+                }
+            }
+
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                if (field === 'qty') moverFocoFila(index + 1, 'code');
+            } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                moverFocoFila(index - 1, 'qty');
+            }
+        }
+
+        /* Botón de la barra de herramientas para abrir Cantidad por Almacén en dispositivos táctiles / celular */
+        function abrirModalStockDesdeToolbar() {
+            const row = gridData[activeRowIndex];
+            if (!row || row.code.trim() === "") return;
+
+            let val = parseFloat(row.qty);
+            const prod = productCatalog.find(p => p.code === row.code);
+            const maxStock = prod ? prod.cantidad : 0;
+
+            if (isNaN(val) || val <= 0 || val > maxStock) {
+                const qtyInput = document.getElementById(`qty_${activeRowIndex}`);
+                if (qtyInput) {
+                    qtyInput.focus();
+                    qtyInput.select();
+                }
+                return;
+            }
+
+            abrirModalStock(activeRowIndex);
+        }
+
+        /* --- LOGICA MODAL REGISTRO DE PEDIDO --- */
+        function evaluarTipoPagoAuto() {
+            const val = document.getElementById('regTerminoPagoInput').value.trim().toUpperCase();
+            if (val === "INMEDIATO") {
+                document.getElementById('regTipoPago').value = "EFECTIVOS";
+            } else {
+                document.getElementById('regTipoPago').value = "";
+            }
+        }
+
+        function abrirModalRegistroPedido() {
+            // 1. Obtener todas las filas que contienen un artículo ingresado
+            const filledRows = gridData.map((r, i) => ({ ...r, index: i })).filter(r => r.code.trim() !== "");
+
+            // Si no hay ningún ítem ingresado en la lista, el botón no realiza nada
+            if (filledRows.length === 0) {
+                return;
+            }
+
+            // 2. Verificar si hay alguna fila intermedia en blanco desde el inicio hasta el último ítem
+            const lastFilledIndex = Math.max(...filledRows.map(r => r.index));
+            for (let i = 0; i <= lastFilledIndex; i++) {
+                if (gridData[i].code.trim() === "") {
+                    return; // Hay una fila vacía intermedia
+                }
+            }
+
+            // 3. Verificar si la fila activa actual está en blanco
+            if (gridData[activeRowIndex].code.trim() === "") {
+                return; // La fila seleccionada actualmente está en blanco
+            }
+
+            // 4. Verificar que TODOS los ítems registrados hayan confirmado la distribución en almacén
+            const itemSinValidar = filledRows.find(r => !r.stockConfirmed);
+            if (itemSinValidar) {
+                mostrarAlerta(`No tiene distribución correcta en almacen: ${itemSinValidar.code}`);
+                return;
+            }
+
+            document.getElementById('regTerminoPagoInput').value = "INMEDIATO";
+            evaluarTipoPagoAuto();
+
+            const orderType = document.getElementById('orderTypeVal').value.trim();
+            let tipoDocText = "B002 - BOLETA INT";
+
+            if (orderType === "VR B002") tipoDocText = "B002 - BOLETA INT";
+            else if (orderType === "VR B003") tipoDocText = "B003 - BOLETA INT";
+            else if (orderType === "VR F002") tipoDocText = "F002 - FACTURA INT";
+            else if (orderType === "VR F003") tipoDocText = "F003 - FACTURA INT";
+            else tipoDocText = orderType + " - BOLETA INT";
+
+            document.getElementById('regTipoDoc').value = tipoDocText;
+
+            // Reset de campos al abrir modal
+            document.getElementById('regClienteCod').value = "";
+            document.getElementById('regClienteNombre').value = "";
+            document.getElementById('regDniRucInput').value = "";
+            document.getElementById('regRazonSocial').value = "";
+            document.getElementById('regClienteRef').value = "";
+
+            const now = new Date();
+            const meses = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+            const day = String(now.getDate()).padStart(2, '0');
+            const month = meses[now.getMonth()];
+            const year = now.getFullYear();
+            const hrs = String(now.getHours()).padStart(2, '0');
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            const secs = String(now.getSeconds()).padStart(2, '0');
+            document.getElementById('regFecha').value = `${day}-${month}-${year} ${hrs}:${mins}:${secs}`;
+
+            const vendedor = document.getElementById('vendedorNombre').value;
+            document.getElementById('regVendedorNombre').value = vendedor;
+
+            const totalFinal = document.getElementById('txtTotalFinal').value;
+            document.getElementById('regMontoTotal').value = totalFinal.replace(/,/g, '');
+            document.getElementById('regTotalPagar').value = totalFinal;
+
+            ncTerminoPrevio = null;
+            evaluarAsignarNC();
+            ncAsignadas = [];
+            document.getElementById('regNCAplicar').value = "0.00";
+
+            document.getElementById('registroPedidoModal').classList.add('active');
+
+            setTimeout(() => {
+                const firstInput = document.getElementById('regTipoDoc');
+                if (firstInput) {
+                    firstInput.focus();
+                    firstInput.select();
+                }
+            }, 50);
+        }
+
+        /* Generar Documento */
+        function generarDocumento() {
+            const regTipoDoc = document.getElementById('regTipoDoc').value.toUpperCase();
+            let serie = "B002";
+            
+            if (regTipoDoc.includes("B003")) serie = "B003";
+            else if (regTipoDoc.includes("B002")) serie = "B002";
+            else if (regTipoDoc.includes("F003")) serie = "F003";
+            else if (regTipoDoc.includes("F002")) serie = "F002";
+            else if (regTipoDoc.startsWith("F")) serie = "F002";
+            else serie = "B002";
+
+            const num = serie.startsWith("F") ? "1868546" : "1960067";
+            const mensaje = `Generación satisfactoria. Serie... - ${serie}--${num}`;
+
+            mostrarAlerta(mensaje, () => {
+                cerrarModal('registroPedidoModal');
+                limpiarLista();
+            });
+        }
+
+        /* Evaluación del casillero "Proviene de una Nota de Crédito" y del botón Asignar NC
+           - CANJE NOTA DE CREDITO: casillero marcado y bloqueado, botón habilitado
+           - DEPOSITO EN CUENTA / TARJETA PAGO LINK: casillero libre; al marcarlo se habilita el botón
+           - Cualquier cambio de término de pago (o desmarcar el casillero) anula las N.C. asignadas */
+        let ncTerminoPrevio = null;
+
+        function ncResetAsignacion() {
+            const habia = ncAsignadas.length > 0 || (parseFloat(document.getElementById('regNCAplicar').value) || 0) !== 0;
+            ncAsignadas = [];
+            document.getElementById('regNCAplicar').value = "0.00";
+            if (habia) actualizarTotalPagarNC();
+            renderNCGrid();
+            cerrarModal('ncModal');
+        }
+
+        function evaluarAsignarNC() {
+            const val = document.getElementById('regTerminoPagoInput').value.trim().toUpperCase();
+            const btn = document.getElementById('btnAsignarNC');
+            const chk = document.getElementById('chkProvieneNC');
+            const esCanje = val === "CANJE NOTA DE CREDITO";
+            const esOpcional = val === "DEPOSITO EN CUENTA" || val === "TARJETA PAGO LINK";
+
+            if (val !== ncTerminoPrevio) {
+                ncTerminoPrevio = val;
+                ncResetAsignacion();
+                if (chk) chk.checked = esCanje;
+            }
+
+            if (chk) {
+                chk.disabled = !esOpcional;
+                if (!esCanje && !esOpcional) chk.checked = false;
+            }
+
+            if (esOpcional && chk && !chk.checked && ncAsignadas.length > 0) {
+                ncResetAsignacion();
+            }
+
+            if (btn) {
+                btn.disabled = !(esCanje || (esOpcional && chk && chk.checked));
+            }
+        }
+
+        /* ===== Asigna Notas de Crédito ===== */
+        // Cada nota de crédito solo es válida para el DNI/RUC indicado
+        const ncCatalog = [
+            { dni: "20601234567", fecha: "30-JUL-2025", serie: "FC02", correlativo: "30725", moneda: "PEN", monto: 1583.8,  saldo: 1275.2 },
+            { dni: "20554321098", fecha: "24-MAY-2026", serie: "FC02", correlativo: "24526", moneda: "PEN", monto: 50.12,   saldo: 50.12 },
+            { dni: "45829384",    fecha: "14-JUN-2026", serie: "BC02", correlativo: "14626", moneda: "PEN", monto: 25000,   saldo: 1075.3 },
+            { dni: "72849102",    fecha: "29-SEP-2026", serie: "BC02", correlativo: "25678", moneda: "PEN", monto: 25.3,    saldo: 5 }
+        ];
+        let ncAsignadas = [];
+
+        const NC_MESES = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+        const NC_MESES_ES = { ENE: "JAN", ABR: "APR", AGO: "AUG", SET: "SEP", DIC: "DEC" };
+        const NC_MESES_LARGO = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+        function ncFmtFecha(d) {
+            return String(d.getDate()).padStart(2, '0') + "-" + NC_MESES[d.getMonth()] + "-" + d.getFullYear();
+        }
+
+        // Devuelve "DD-MMM-YYYY" normalizado (acepta SET/ENE/etc.) o "" si no es una fecha válida
+        function ncNormalizarFecha(txt) {
+            const m = String(txt || "").trim().toUpperCase().match(/^(\d{1,2})-([A-Z]{3})-(\d{4})$/);
+            if (!m) return "";
+            const mes = NC_MESES_ES[m[2]] || m[2];
+            if (!NC_MESES.includes(mes)) return "";
+            return m[1].padStart(2, '0') + "-" + mes + "-" + m[3];
+        }
+
+        function ncNormalizarSerie(txt) {
+            return String(txt || "").trim().toUpperCase().replace(/O/g, "0");
+        }
+
+        function ncFmtNum(n) {
+            return String(parseFloat(Number(n).toFixed(2)));
+        }
+
+        function ncTotalVenta() {
+            return parseFloat(String(document.getElementById('regMontoTotal').value).replace(/,/g, '')) || 0;
+        }
+
+        // Lo máximo que puede aplicar la fila i: el saldo, sin pasar del total de la venta que aún falta cubrir
+        function ncMaxAplicar(i) {
+            const otros = ncAsignadas.reduce((acc, r, j) => j === i ? acc : acc + r.porAplicar, 0);
+            const falta = Math.max(ncTotalVenta() - otros, 0);
+            return Math.round(Math.min(ncAsignadas[i].saldo, falta) * 100) / 100;
+        }
+
+        function ncKeydown(event, nextId) {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            if (nextId) {
+                const el = document.getElementById(nextId);
+                if (el) { el.focus(); el.select(); }
+            } else {
+                asignarNC();
+            }
+        }
+
+        function asignarNC() {
+            const dni = document.getElementById('regDniRucInput').value.trim();
+            const fecha = ncNormalizarFecha(document.getElementById('ncFecha').value);
+            const serie = ncNormalizarSerie(document.getElementById('ncSerie').value);
+            const corr = document.getElementById('ncCorrelativo').value.trim();
+
+            const nc = ncCatalog.find(n => n.dni === dni && n.fecha === fecha && n.serie === serie && n.correlativo === corr);
+            if (!nc) {
+                mostrarAlerta("La Nota de Crédito no existe", () => {
+                    const f = document.getElementById('ncFecha');
+                    if (f) { f.focus(); f.select(); }
+                });
+                return;
+            }
+
+            if (ncAsignadas.some(r => r.serie === nc.serie && r.correlativo === nc.correlativo)) {
+                mostrarAlerta("La Nota de Crédito ya fue asignada", () => {
+                    const f = document.getElementById('ncFecha');
+                    if (f) { f.focus(); f.select(); }
+                });
+                return;
+            }
+
+            // Por Aplicar: toma todo lo que pueda del saldo, con tope en el total de la venta pendiente
+            const usado = ncAsignadas.reduce((acc, r) => acc + r.porAplicar, 0);
+            const falta = Math.max(ncTotalVenta() - usado, 0);
+            const porAplicar = Math.round(Math.min(nc.saldo, falta) * 100) / 100;
+
+            ncAsignadas.push({ serie: nc.serie, correlativo: nc.correlativo, fecha: nc.fecha, moneda: nc.moneda, monto: nc.monto, saldo: nc.saldo, porAplicar });
+
+            document.getElementById('ncFecha').value = "";
+            document.getElementById('ncSerie').value = "";
+            document.getElementById('ncCorrelativo').value = "";
+            renderNCGrid();
+            document.getElementById('ncFecha').focus();
+        }
+
+        function ncCambioPorAplicar(i, el) {
+            let v = parseFloat(String(el.value).replace(',', '.'));
+            if (isNaN(v) || v < 0) v = 0;
+            const max = ncMaxAplicar(i);
+            if (v > max) v = max;
+            ncAsignadas[i].porAplicar = Math.round(v * 100) / 100;
+            renderNCGrid();
+        }
+
+        function renderNCGrid() {
+            const tbody = document.getElementById('ncGridBody');
+            if (!tbody) return;
+            const celda = (val, align) => `<td><input class="nc-grid-input" style="text-align:${align};" value="${val}" readonly></td>`;
+            let html = "";
+            const filas = Math.max(6, ncAsignadas.length);
+            for (let i = 0; i < filas; i++) {
+                const r = ncAsignadas[i];
+                if (r) {
+                    html += `<tr>${celda(r.serie, 'left')}${celda(r.correlativo, 'right')}${celda(r.fecha, 'left')}${celda(r.moneda, 'center')}${celda(ncFmtNum(r.monto), 'right')}${celda(ncFmtNum(r.saldo), 'right')}` +
+                        `<td><input class="nc-grid-input" style="text-align:right;" value="${ncFmtNum(r.porAplicar)}" ` +
+                        `oninput="this.value = this.value.replace(/[^0-9.,]/g, '')" onchange="ncCambioPorAplicar(${i}, this)" ` +
+                        `onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur();}"></td></tr>`;
+                } else {
+                    html += `<tr>${celda('', 'left')}${celda('', 'left')}${celda('', 'left')}${celda('', 'left')}${celda('', 'left')}${celda('', 'left')}${celda('', 'left')}</tr>`;
+                }
+            }
+            tbody.innerHTML = html;
+            const total = ncAsignadas.reduce((acc, r) => acc + r.porAplicar, 0);
+            document.getElementById('ncTotalAplicar').value = ncAsignadas.length ? ncFmtNum(total) : "";
+        }
+
+        /* Aplicar: pasa el Total por Aplicar a "N.C. aplicar" y descuenta del Total a Pagar */
+        function aplicarNC() {
+            const total = ncAsignadas.reduce((acc, r) => acc + r.porAplicar, 0);
+            document.getElementById('regNCAplicar').value = total.toFixed(2);
+            actualizarTotalPagarNC();
+            cerrarModal('ncModal');
+        }
+
+        // Total a Pagar = Monto total - N.C. aplicar
+        function actualizarTotalPagarNC() {
+            const montoTotal = ncTotalVenta();
+            const nc = parseFloat(document.getElementById('regNCAplicar').value) || 0;
+            const totalPagar = Math.max(montoTotal - nc, 0);
+            document.getElementById('regTotalPagar').value = totalPagar.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        /* Ventana Asigna Notas de Crédito movible (arrastrando la barra de título) */
+        function ncResetPosicion() {
+            const win = document.querySelector('#ncModal .modal-window');
+            if (!win) return;
+            win.style.position = '';
+            win.style.left = '';
+            win.style.top = '';
+            win.style.margin = '';
+        }
+
+        (function() {
+            const win = document.querySelector('#ncModal .modal-window');
+            const header = document.getElementById('ncHeader');
+            if (!win || !header) return;
+            let dragging = false, offX = 0, offY = 0;
+
+            header.addEventListener('pointerdown', function(e) {
+                if (e.target.closest('button')) return;
+                const r = win.getBoundingClientRect();
+                dragging = true;
+                offX = e.clientX - r.left;
+                offY = e.clientY - r.top;
+                win.style.position = 'fixed';
+                win.style.margin = '0';
+                win.style.left = r.left + 'px';
+                win.style.top = r.top + 'px';
+                header.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+
+            header.addEventListener('pointermove', function(e) {
+                if (!dragging) return;
+                const maxLeft = Math.max(0, window.innerWidth - win.offsetWidth);
+                const maxTop = Math.max(0, window.innerHeight - win.offsetHeight);
+                win.style.left = Math.min(Math.max(0, e.clientX - offX), maxLeft) + 'px';
+                win.style.top = Math.min(Math.max(0, e.clientY - offY), maxTop) + 'px';
+            });
+
+            const soltar = () => { dragging = false; };
+            header.addEventListener('pointerup', soltar);
+            header.addEventListener('pointercancel', soltar);
+        })();
+
+        /* ===== Calendario ===== */
+        let calVistaAnio = 0, calVistaMes = 0, calSeleccion = null;
+
+        function abrirCalendarioNC() {
+            const norm = ncNormalizarFecha(document.getElementById('ncFecha').value);
+            let base = new Date();
+            if (norm) {
+                const [d, m, y] = norm.split('-');
+                base = new Date(parseInt(y), NC_MESES.indexOf(m), parseInt(d));
+            }
+            calSeleccion = base;
+            calVistaAnio = base.getFullYear();
+            calVistaMes = base.getMonth();
+            renderCalendario();
+            document.getElementById('calModal').classList.add('active');
+        }
+
+        function cerrarCalendarioNC() {
+            document.getElementById('calModal').classList.remove('active');
+            const f = document.getElementById('ncFecha');
+            if (f) f.focus();
+        }
+
+        function calMover(delta) {
+            const d = new Date(calVistaAnio, calVistaMes + delta, 1);
+            calVistaAnio = d.getFullYear();
+            calVistaMes = d.getMonth();
+            renderCalendario();
+        }
+
+        function calElegir(anio, mes, dia, aceptar) {
+            calSeleccion = new Date(anio, mes, dia);
+            calVistaAnio = anio;
+            calVistaMes = mes;
+            if (aceptar) { calAceptar(); return; }
+            renderCalendario();
+        }
+
+        function calAceptar() {
+            document.getElementById('ncFecha').value = ncFmtFecha(calSeleccion);
+            document.getElementById('calModal').classList.remove('active');
+            const serie = document.getElementById('ncSerie');
+            if (serie) { serie.focus(); serie.select(); }
+        }
+
+        function renderCalendario() {
+            document.getElementById('calTitulo').innerText = NC_MESES_LARGO[calVistaMes] + " " + calVistaAnio;
+            document.getElementById('calSelTexto').innerText = ncFmtFecha(calSeleccion);
+            const primero = new Date(calVistaAnio, calVistaMes, 1);
+            const inicio = new Date(calVistaAnio, calVistaMes, 1 - primero.getDay());
+            let html = "";
+            for (let f = 0; f < 6; f++) {
+                html += "<tr>";
+                for (let c = 0; c < 7; c++) {
+                    const d = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + f * 7 + c);
+                    const enMes = d.getMonth() === calVistaMes;
+                    const sel = calSeleccion && d.getFullYear() === calSeleccion.getFullYear() && d.getMonth() === calSeleccion.getMonth() && d.getDate() === calSeleccion.getDate();
+                    const args = `${d.getFullYear()}, ${d.getMonth()}, ${d.getDate()}`;
+                    html += `<td class="${enMes ? 'in-month' : ''} ${sel ? 'sel' : ''}" onclick="calElegir(${args}, false)" ondblclick="calElegir(${args}, true)">${d.getDate()}</td>`;
+                }
+                html += "</tr>";
+            }
+            document.getElementById('calBody').innerHTML = html;
+        }
+
+        /* Botón Asignar NC: exige cliente; si lo hay, abre la ventana Asigna Notas de Crédito */
+        function abrirModalAsignarNC() {
+            const clienteCod = document.getElementById('regClienteCod').value.trim();
+            if (clienteCod === "") {
+                mostrarAlerta("Primero debe ingresar el RUC/DNI del Cliente", () => {
+                    const dni = document.getElementById('regDniRucInput');
+                    if (dni) { dni.focus(); dni.select(); }
+                });
+                return;
+            }
+            document.getElementById('ncFecha').value = "";
+            document.getElementById('ncSerie').value = "";
+            document.getElementById('ncCorrelativo').value = "";
+            renderNCGrid();
+            ncResetPosicion();
+            document.getElementById('ncModal').classList.add('active');
+            setTimeout(() => document.getElementById('ncFecha').focus(), 50);
+        }
+
+        function handleRegistroNav(event, nextId) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                if (nextId) {
+                    const nextEl = document.getElementById(nextId);
+                    if (nextEl) {
+                        nextEl.focus();
+                        if (typeof nextEl.select === 'function') {
+                            nextEl.select();
+                        }
+                    }
+                }
+            }
+        }
+
+        function handleTerminoPagoKeyDown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const text = event.target.value.trim();
+                
+                if (!text) {
+                    abrirModalTerminoPago("");
+                    return;
+                }
+
+                const normText = normalizeText(text);
+                const matches = terminosPagoLista.filter(t => 
+                    normalizeText(t).startsWith(normText)
+                );
+
+                if (matches.length === 1) {
+                    event.target.value = matches[0];
+                    evaluarAsignarNC();
+                    evaluarTipoPagoAuto();
+                    moverFocoSiguienteRegDni();
+                } else {
+                    abrirModalTerminoPago(text);
+                }
+            }
+        }
+
+        function abrirModalTerminoPago(searchTerm = "") {
+            const searchInput = document.getElementById('terminoSearchInput');
+            if (searchTerm) {
+                searchInput.value = searchTerm.toUpperCase() + "%";
+            } else {
+                searchInput.value = "%";
+            }
+            filtrarTerminosPago();
+            document.getElementById('terminoPagoModal').classList.add('active');
+            
+            setTimeout(() => {
+                searchInput.focus();
+                searchInput.select();
+            }, 50);
+        }
+
+        function filtrarTerminosPago() {
+            const rawVal = document.getElementById('terminoSearchInput').value;
+            const query = rawVal.replace(/%/g, '').trim();
+            const normQuery = normalizeText(query);
+            const tbody = document.getElementById('terminoPagoList');
+            tbody.innerHTML = '';
+
+            let filtrados = [];
+            if (normQuery === "") {
+                filtrados = [...terminosPagoLista];
+            } else {
+                filtrados = terminosPagoLista.filter(t => normalizeText(t).startsWith(normQuery));
+            }
+
+            selectedTerminoPagoIndex = 0;
+
+            if (filtrados.length === 0) {
+                tbody.innerHTML = `<tr><td style="text-align:center;">No hay resultados</td></tr>`;
+                return;
+            }
+
+            filtrados.forEach((term, index) => {
+                const tr = document.createElement('tr');
+                if (index === 0) tr.classList.add('selected');
+
+                tr.onclick = () => {
+                    document.querySelectorAll('#terminoPagoList tr').forEach(r => r.classList.remove('selected'));
+                    tr.classList.add('selected');
+                    selectedTerminoPagoIndex = index;
+                };
+
+                tr.ondblclick = () => {
+                    document.getElementById('regTerminoPagoInput').value = term;
+                    evaluarAsignarNC();
+                    evaluarTipoPagoAuto();
+                    cerrarModal('terminoPagoModal');
+                    moverFocoSiguienteRegDni();
+                };
+
+                tr.innerHTML = `<td>${term}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function handleTerminoSearchKeydown(event) {
+            const rows = document.querySelectorAll('#terminoPagoList tr');
+            if (rows.length === 0) return;
+
+            if (event.key === "ArrowDown") {
+                event.preventDefault();
+                if (selectedTerminoPagoIndex < rows.length - 1) {
+                    selectedTerminoPagoIndex++;
+                    actualizarSeleccionTerminoTabla(rows);
+                }
+            } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                if (selectedTerminoPagoIndex > 0) {
+                    selectedTerminoPagoIndex--;
+                    actualizarSeleccionTerminoTabla(rows);
+                }
+            } else if (event.key === "Enter") {
+                event.preventDefault();
+                aceptarTerminoPagoModal();
+            }
+        }
+
+        function actualizarSeleccionTerminoTabla(rows) {
+            rows.forEach((r, idx) => {
+                if (idx === selectedTerminoPagoIndex) {
+                    r.classList.add('selected');
+                    r.scrollIntoView({ block: 'nearest' });
+                } else {
+                    r.classList.remove('selected');
+                }
+            });
+        }
+
+        function aceptarTerminoPagoModal() {
+            const selectedRow = document.querySelector('#terminoPagoList tr.selected');
+            if (selectedRow) {
+                document.getElementById('regTerminoPagoInput').value = selectedRow.innerText.trim();
+                evaluarAsignarNC();
+                evaluarTipoPagoAuto();
+                cerrarModal('terminoPagoModal');
+                moverFocoSiguienteRegDni();
+            }
+        }
+
+        function moverFocoSiguienteRegDni() {
+            setTimeout(() => {
+                const nextEl = document.getElementById('regDniRucInput');
+                if (nextEl) {
+                    const esBoleta = esBoletaActual();
+                    if (esBoleta && !nextEl.value) {
+                        nextEl.value = "99999999";
+                    }
+                    nextEl.focus();
+                    if (typeof nextEl.select === 'function') nextEl.select();
+                }
+            }, 50);
+        }
+
+        /* --- COMPORTAMIENTO DNI / RUC Y RAZON SOCIAL --- */
+        function handleDniInput(event) {
+            event.target.value = event.target.value.toUpperCase();
+        }
+
+        function handleDniFocus() {
+            const nroPedido = document.getElementById('nroPedidoInput') ? document.getElementById('nroPedidoInput').value : '';
+            const regClienteRef = document.getElementById('regClienteRef');
+            if (regClienteRef && nroPedido) {
+                regClienteRef.value = nroPedido;
+            }
+
+            const esBoleta = esBoletaActual();
+            const dniInput = document.getElementById('regDniRucInput');
+            if (esBoleta && dniInput && !dniInput.value) {
+                dniInput.value = "99999999";
+                dniInput.select();
+            }
+        }
+
+        function handleDniKeyDown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const val = event.target.value.trim().toUpperCase();
+                
+                const esBoleta = esBoletaActual();
+                const reqLen = esBoleta ? 8 : 11;
+
+                if (!esBoleta && val === "") {
+                    moverFocoSiguienteTermino();
+                    return;
+                }
+
+                const match = clienteCatalog.find(c => (c.dniRuc === val || c.code === val) && c.dniRuc.length === reqLen);
+
+                if (match) {
+                    seleccionarCliente(match);
+                    moverFocoSiguienteTermino();
+                } else if (val === "99999999" && esBoleta) {
+                    document.getElementById('regClienteCod').value = "100001";
+                    document.getElementById('regClienteNombre').value = "CLIENTE GENERICO";
+                    document.getElementById('regRazonSocial').value = "CLIENTE GENERICO";
+                    moverFocoSiguienteTermino();
+                } else {
+                    abrirModalCliente();
+                }
+            }
+        }
+
+        function moverFocoSiguienteTermino() {
+            const nextEl = document.getElementById('regTerminoPagoInput');
+            if (nextEl) {
+                nextEl.focus();
+                if (typeof nextEl.select === 'function') nextEl.select();
+            }
+        }
+
+        /* --- LOGICA MODAL CLIENTES --- */
+        function abrirModalCliente() {
+            const input = document.getElementById("clienteSearchInput");
+            input.value = "%";
+            document.getElementById("clienteModal").classList.add("active");
+            
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 50);
+
+            ejecutarBusquedaCliente();
+        }
+
+        function ejecutarBusquedaCliente() {
+            const query = document.getElementById("clienteSearchInput").value.trim().toUpperCase();
+            const tokens = query.split("%").map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+
+            const esBoleta = esBoletaActual();
+            const reqLen = esBoleta ? 8 : 11;
+
+            const baseClientes = clienteCatalog.filter(c => c.dniRuc.length === reqLen);
+
+            if (tokens.length === 0) {
+                filteredClientes = [...baseClientes];
+            } else {
+                filteredClientes = baseClientes.filter(c => {
+                    const fullText = `${c.code} ${c.dniRuc} ${c.razonSocial}`.toLowerCase();
+                    return tokens.every(token => fullText.includes(token));
+                });
+            }
+
+            selectedClienteIndex = filteredClientes.length > 0 ? 0 : -1;
+            renderClienteResults();
+        }
+
+        function renderClienteResults() {
+            const tbody = document.getElementById("clienteList");
+            tbody.innerHTML = "";
+
+            if (filteredClientes.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; padding:10px;">No hay resultados</td></tr>`;
+                return;
+            }
+
+            filteredClientes.forEach((cli, i) => {
+                const tr = document.createElement("tr");
+                if (i === selectedClienteIndex) tr.classList.add("selected");
+
+                tr.onclick = () => {
+                    document.querySelectorAll("#clienteList tr").forEach(r => r.classList.remove("selected"));
+                    tr.classList.add("selected");
+                    selectedClienteIndex = i;
+                };
+
+                tr.ondblclick = () => {
+                    selectedClienteIndex = i;
+                    aceptarSeleccionCliente();
+                };
+
+                tr.innerHTML = `
+                    <td><b>${cli.code}</b></td>
+                    <td>${cli.dniRuc}</td>
+                    <td>${cli.razonSocial}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function handleClienteModalKeyDown(e) {
+            const rows = document.querySelectorAll("#clienteList tr");
+            if (rows.length === 0) return;
+
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                if (selectedClienteIndex < filteredClientes.length - 1) {
+                    selectedClienteIndex++;
+                    actualizarSeleccionClienteTabla(rows);
+                }
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                if (selectedClienteIndex > 0) {
+                    selectedClienteIndex--;
+                    actualizarSeleccionClienteTabla(rows);
+                }
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                aceptarSeleccionCliente();
+            }
+        }
+
+        function actualizarSeleccionClienteTabla(rows) {
+            rows.forEach((r, idx) => {
+                if (idx === selectedClienteIndex) {
+                    r.classList.add("selected");
+                    r.scrollIntoView({ block: "nearest" });
+                } else {
+                    r.classList.remove("selected");
+                }
+            });
+        }
+
+        function aceptarSeleccionCliente() {
+            if (selectedClienteIndex >= 0 && selectedClienteIndex < filteredClientes.length) {
+                const selected = filteredClientes[selectedClienteIndex];
+                seleccionarCliente(selected);
+                cerrarModal('clienteModal');
+                
+                setTimeout(() => {
+                    const nextEl = document.getElementById('regTerminoPagoInput');
+                    if (nextEl) {
+                        nextEl.focus();
+                        if (typeof nextEl.select === 'function') nextEl.select();
+                    }
+                }, 50);
+            }
+        }
+
+        function seleccionarCliente(cliente) {
+            document.getElementById('regClienteCod').value = cliente.code;
+            document.getElementById('regClienteNombre').value = cliente.razonSocial;
+            document.getElementById('regDniRucInput').value = cliente.dniRuc;
+            document.getElementById('regRazonSocial').value = cliente.razonSocial;
+        }
+
+        /* --- LOGICA MODAL CANTIDAD POR ALMACEN --- */
+        function abrirModalStock(index) {
+            const row = gridData[index];
+            const prod = productCatalog.find(p => p.code === row.code);
+            const stockVal = prod ? prod.cantidad : 0;
+            const currentQty = row.qty || "";
+
+            document.getElementById('stockModalCode').value = row.code;
+            document.getElementById('stockModalDesc').value = row.description;
+            document.getElementById('stockModalQtyReq').value = currentQty;
+            document.getElementById('stockModalQtyPrim').value = currentQty;
+            document.getElementById('stockModalStock').value = stockVal;
+            document.getElementById('stockModalDisp').value = stockVal;
+            document.getElementById('stockModalQtyInput').value = currentQty;
+            document.getElementById('stockModalTotalDist').value = currentQty;
+
+            document.getElementById('stockModal').classList.add('active');
+
+            setTimeout(() => {
+                const input = document.getElementById('stockModalQtyInput');
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }, 50);
+        }
+
+        function actualizarTotalDistribuir(val) {
+            document.getElementById('stockModalTotalDist').value = val;
+        }
+
+        function handleStockQtyKeydown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const val = parseFloat(event.target.value);
+                if (isNaN(val) || val <= 0) return;
+
+                document.getElementById('btnAceptarStock').focus();
+            }
+        }
+
+        function handleBtnAceptarKeydown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                confirmarStockModal();
+            }
+        }
+
+        function confirmarStockModal() {
+            const val = document.getElementById('stockModalQtyInput').value.trim();
+            const qtyReq = document.getElementById('stockModalQtyReq').value.trim();
+            const stockVal = parseFloat(document.getElementById('stockModalStock').value) || 0;
+            
+            const numVal = parseFloat(val);
+            const numReq = parseFloat(qtyReq);
+
+            if (isNaN(numVal) || numVal <= 0) return;
+
+            if (numVal !== numReq) {
+                mostrarAlerta("La cantidad por almacen no puede ser diferente a la solicitada por el cliente");
+                return;
+            }
+
+            if (numVal > stockVal) return;
+
+            actualizarValores(activeRowIndex, 'qty', val);
+            gridData[activeRowIndex].stockConfirmed = true; // Confirmación exitosa de stock
+
+            cerrarModal('stockModal');
+
+            setTimeout(() => {
+                moverFocoFila(activeRowIndex + 1, 'code');
+            }, 50);
+        }
+
+        function cancelarStockModal() {
+            actualizarValores(activeRowIndex, 'qty', '');
+            cerrarModal('stockModal');
+            
+            setTimeout(() => {
+                const qtyInput = document.getElementById(`qty_${activeRowIndex}`);
+                if (qtyInput) {
+                    qtyInput.focus();
+                    qtyInput.select();
+                }
+            }, 50);
+        }
+
+        /* --- LOGICA MODAL ALERTA FORMS --- */
+        function mostrarAlerta(mensaje, callback = null) {
+            alertCallback = callback;
+            document.getElementById('alertModalText').innerText = mensaje;
+            document.getElementById('alertModal').classList.add('active');
+            setTimeout(() => {
+                const btnOk = document.getElementById('btnAlertOk');
+                if (btnOk) btnOk.focus();
+            }, 50);
+        }
+
+        function handleAlertOkKeydown(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                cerrarAlertModal();
+            }
+        }
+
+        function cerrarAlertModal() {
+            document.getElementById('alertModal').classList.remove('active');
+            if (typeof alertCallback === 'function') {
+                const cb = alertCallback;
+                alertCallback = null;
+                cb();
+            } else {
+                setTimeout(() => {
+                    const qtyInput = document.getElementById('stockModalQtyInput');
+                    if (qtyInput && document.getElementById('stockModal').classList.contains('active')) {
+                        qtyInput.focus();
+                        qtyInput.select();
+                    } else {
+                        const codeInput = document.getElementById(`code_${activeRowIndex}`);
+                        if (codeInput) {
+                            codeInput.focus();
+                            codeInput.select();
+                        }
+                    }
+                }, 50);
+            }
+        }
+
+        function moverFocoFila(nextIndex, field) {
+            if (nextIndex >= 0 && nextIndex < TOTAL_ROWS) {
+                seleccionarFila(nextIndex);
+                setTimeout(() => {
+                    const el = document.getElementById(`${field}_${activeRowIndex}`);
+                    if (el) el.focus();
+                }, 10);
+            }
+        }
+
+        function actualizarValores(index, field, val) {
+            gridData[index][field] = val.replace(',', '.');
+            
+            const qty = parseFloat(gridData[index].qty) || 0;
+            const price = parseFloat(gridData[index].priceVenta) || 0;
+            const dscto = parseFloat(gridData[index].dscto) || 0; 
+            const prod = productCatalog.find(p => p.code === gridData[index].code);
+            const pesoUnit = prod ? prod.pesoUnit : 0;
+
+            gridData[index].peso = (qty * pesoUnit).toFixed(2);
+            
+            let subtotal = qty * price;
+            let montoDescuento = subtotal * (dscto / 100);
+            gridData[index].totalLinea = (subtotal - montoDescuento).toFixed(2);
+
+            const elQty = document.getElementById(`qty_${index}`);
+            const elPeso = document.getElementById(`peso_${index}`);
+            const elTotal = document.getElementById(`totalLinea_${index}`);
+            if (elQty) elQty.value = gridData[index].qty;
+            if (elPeso) elPeso.value = gridData[index].peso;
+            if (elTotal) elTotal.value = gridData[index].totalLinea;
+
+            calcularTotales();
+        }
+
+        function calcularTotales() {
+            let totalGeneral = 0;
+            let totalPeso = 0;
+
+            gridData.forEach((row) => {
+                totalGeneral += parseFloat(row.totalLinea) || 0;
+                totalPeso += parseFloat(row.peso) || 0;
+            });
+
+            document.getElementById('txtTotalPeso').value = totalPeso.toFixed(2);
+            document.getElementById('txtTotalFinal').value = totalGeneral.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        let listaPrecioActual = "6011";
+
+        function precioDe(prod) {
+            if (listaPrecioActual === "6012" && prod.priceMayor !== undefined) return prod.priceMayor || 0;
+            return prod.price || 0;
+        }
+
+        function aplicarListaPrecio() {
+            gridData.forEach(row => {
+                if (!row.code || row.code.trim() === "") return;
+                const prod = productCatalog.find(p => p.code === row.code);
+                if (!prod) return;
+                const precio = precioDe(prod);
+                row.priceList = precio.toFixed(2);
+                row.priceVenta = precio.toFixed(2);
+                const qty = parseFloat(row.qty) || 0;
+                const dscto = parseFloat(row.dscto) || 0;
+                const subtotal = qty * precio;
+                row.totalLinea = (subtotal - subtotal * (dscto / 100)).toFixed(2);
+            });
+            inicializarTabla();
+        }
+
+        function seleccionarProductoParaFila(index, prod) {
+            // Verificar si el artículo ya existe en otra fila
+            const existeDuplicado = gridData.some((r, i) => i !== index && r.code.toUpperCase() === prod.code.toUpperCase());
+            if (existeDuplicado) {
+                mostrarAlerta("El articulo ya existe. Revisar");
+                gridData[index].code = "";
+                inicializarTabla();
+                setTimeout(() => {
+                    const el = document.getElementById(`code_${index}`);
+                    if (el) {
+                        el.focus();
+                        el.select();
+                    }
+                }, 50);
+                return false;
+            }
+
+            gridData[index] = {
+                code: prod.code,
+                udm: prod.udm,
+                qty: "",
+                peso: "0.00",
+                description: prod.description,
+                priceList: precioDe(prod) ? precioDe(prod).toFixed(2) : "0.00",
+                dscto: "",
+                det: "Si",
+                transf: "",
+                priceVenta: precioDe(prod) ? precioDe(prod).toFixed(2) : "0.00",
+                totalLinea: "0.00",
+                matServ: false, perc: false, fisc: false,
+                minUnit: prod.minUnit || "1",
+                pack: prod.pack || "0",
+                mpack: prod.mpack || "0",
+                pallet: prod.pallet || "0",
+                stockConfirmed: false
+            };
+            inicializarTabla();
+            return true;
+        }
+
+        function limpiarFila(index) {
+            gridData[index] = {
+                code: "", udm: "", qty: "", peso: "0.00", description: "", priceList: "", dscto: "", det: "Si", transf: "", priceVenta: "", totalLinea: "0.00",
+                matServ: false, perc: false, fisc: false, minUnit: "", pack: "", mpack: "", pallet: "",
+                stockConfirmed: false
+            };
+            inicializarTabla();
+        }
+
+        function limpiarLista() {
+            gridData = Array.from({ length: TOTAL_ROWS }, () => ({
+                code: "", udm: "", qty: "", peso: "0.00", description: "", priceList: "", dscto: "", det: "Si", transf: "", priceVenta: "", totalLinea: "0.00",
+                matServ: false, perc: false, fisc: false, minUnit: "", pack: "", mpack: "", pallet: "",
+                stockConfirmed: false
+            }));
+            
+            document.getElementById("vendedorNombre").value = "ALARCON QUISPE, JHONNY";
+            const vendInput = document.getElementById("vendedorInput");
+            if (vendInput) vendInput.value = "";
+
+            activeRowIndex = 0;
+            inicializarTabla();
+        }
+
+        function eliminarFilaSeleccionada() {
+            if (activeRowIndex >= 0 && activeRowIndex < gridData.length) {
+                gridData.splice(activeRowIndex, 1);
+                gridData.push({
+                    code: "", udm: "", qty: "", peso: "0.00", description: "", priceList: "", dscto: "", det: "Si", transf: "", priceVenta: "", totalLinea: "0.00",
+                    matServ: false, perc: false, fisc: false, minUnit: "", pack: "", mpack: "", pallet: "",
+                    stockConfirmed: false
+                });
+                
+                if (activeRowIndex > 0) {
+                    activeRowIndex--;
+                }
+                
+                inicializarTabla();
+                setTimeout(() => {
+                    const codeInput = document.getElementById(`code_${activeRowIndex}`);
+                    if (codeInput) codeInput.focus();
+                }, 10);
+            }
+        }
+
+        /* Ventana Lista de Artículo: arrastre y redimensionado con la flecha inferior derecha */
+        (function() {
+            let dragging = false;
+            let resizing = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            let resizeStartX = 0;
+            let resizeStartY = 0;
+            let resizeStartWidth = 0;
+            let resizeStartHeight = 0;
+
+            const modal = document.getElementById('productModal');
+            const win = modal ? modal.querySelector('.modal-window') : null;
+            const header = modal ? modal.querySelector('.modal-header') : null;
+            const handle = modal ? modal.querySelector('.resize-handle') : null;
+            if (!modal || !win || !header || !handle) return;
+
+            header.addEventListener('mousedown', function(e) {
+                if (e.target.closest('button')) return;
+                if (resizing) return;
+
+                const rect = win.getBoundingClientRect();
+                dragging = true;
+                dragOffsetX = e.clientX - rect.left;
+                dragOffsetY = e.clientY - rect.top;
+                win.style.left = rect.left + 'px';
+                win.style.top = rect.top + 'px';
+                e.preventDefault();
+            });
+
+            handle.addEventListener('mousedown', function(e) {
+                const rect = win.getBoundingClientRect();
+                resizing = true;
+                resizeStartX = e.clientX;
+                resizeStartY = e.clientY;
+                resizeStartWidth = rect.width;
+                resizeStartHeight = rect.height;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (dragging) {
+                    const maxLeft = Math.max(0, window.innerWidth - win.offsetWidth);
+                    const maxTop = Math.max(0, window.innerHeight - win.offsetHeight);
+                    win.style.left = Math.min(Math.max(0, e.clientX - dragOffsetX), maxLeft) + 'px';
+                    win.style.top = Math.min(Math.max(0, e.clientY - dragOffsetY), maxTop) + 'px';
+                }
+
+                if (resizing) {
+                    const newWidth = Math.max(620, resizeStartWidth + (e.clientX - resizeStartX));
+                    const newHeight = Math.max(300, resizeStartHeight + (e.clientY - resizeStartY));
+                    win.style.width = Math.min(newWidth, window.innerWidth - win.getBoundingClientRect().left) + 'px';
+                    win.style.height = Math.min(newHeight, window.innerHeight - win.getBoundingClientRect().top) + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', function() {
+                dragging = false;
+                resizing = false;
+            });
+        })();
+
+        let ultimaBusquedaModal = "";
+        function abrirModalProducto(index, text = "") {
+            if (activeRowIndex !== index) {
+                seleccionarFila(index);
+                if (activeRowIndex !== index) return;
+            }
+
+            let query = text || gridData[index].code;
+            if (query && !query.endsWith("%")) query += "%";
+            else if (!query) query = "%";
+
+            const input = document.getElementById("modalSearchInput");
+            input.value = query.toUpperCase();
+            document.getElementById("productModal").classList.add("active");
+            input.focus();
+            ejecutarBusquedaModal();
+            ultimaBusquedaModal = input.value.trim().toUpperCase();
+        }
+
+        function ejecutarBusquedaModal() {
+            const query = document.getElementById("modalSearchInput").value.trim().toUpperCase();
+            const tokens = query.split("%").map(t => t.trim().toLowerCase()).filter(t => t.length > 0);
+
+            if (tokens.length === 0) {
+                filteredModalProducts = [...productCatalog];
+            } else {
+                filteredModalProducts = productCatalog.filter(p => {
+                    const fullText = `${p.code} ${p.description} ${p.udm}`.toLowerCase();
+                    return tokens.every(token => fullText.includes(token));
+                });
+            }
+
+            selectedModalIndex = filteredModalProducts.length > 0 ? 0 : -1;
+            renderModalResults();
+        }
+
+        function renderModalResults() {
+            const tbody = document.getElementById("modalProductList");
+            tbody.innerHTML = "";
+
+            if (filteredModalProducts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding:10px;">No hay resultados</td></tr>`;
+                return;
+            }
+
+            filteredModalProducts.forEach((prod, i) => {
+                const tr = document.createElement("tr");
+                if (i === selectedModalIndex) tr.classList.add("selected");
+
+                tr.onclick = () => { selectedModalIndex = i; renderModalResults(); };
+                tr.ondblclick = () => { selectedModalIndex = i; aceptarSeleccionModal(); };
+
+                tr.innerHTML = `
+                    <td><b>${prod.code}</b></td>
+                    <td>SI</td>
+                    <td class="quantity-cell" style="text-align: right; color: black; font-weight: bold;">${prod.cantidad !== undefined ? prod.cantidad : 0}</td>
+                    <td style="text-align: right;">${prod.oferta !== undefined ? prod.oferta : 0}</td>
+                    <td style="text-align: right;">${prod.almTab !== undefined ? prod.almTab : 0}</td>
+                    <td style="text-align: right;">${prod.cdUnicachi !== undefined ? prod.cdUnicachi : 0}</td>
+                    <td style="text-align: right;">${prod.outlet !== undefined ? prod.outlet : 0}</td>
+                    <td style="text-align: right;">${prod.ofertaUni !== undefined ? prod.ofertaUni : 0}</td>
+                    <td>${prod.udm}</td>
+                    <td style="text-align: right;">${precioDe(prod) ? precioDe(prod).toFixed(2) : "0.00"}</td>
+                    <td>${prod.description}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function handleModalKeyDown(e) {
+            if (e.key === "ArrowDown" && selectedModalIndex < filteredModalProducts.length - 1) {
+                selectedModalIndex++; renderModalResults();
+            } else if (e.key === "ArrowUp" && selectedModalIndex > 0) {
+                selectedModalIndex--; renderModalResults();
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                const consultaActual = document.getElementById("modalSearchInput").value.trim().toUpperCase();
+                if (consultaActual !== ultimaBusquedaModal) {
+                    ejecutarBusquedaModal();
+                    ultimaBusquedaModal = consultaActual;
+                } else {
+                    aceptarSeleccionModal();
+                }
+            }
+        }
+
+        function aceptarSeleccionModal() {
+            if (selectedModalIndex >= 0 && selectedModalIndex < filteredModalProducts.length) {
+                const prod = filteredModalProducts[selectedModalIndex];
+                cerrarModal('productModal');
+                
+                const exito = seleccionarProductoParaFila(activeRowIndex, prod);
+                if (exito) {
+                    setTimeout(() => {
+                        const qtyInput = document.getElementById(`qty_${activeRowIndex}`);
+                        if (qtyInput) qtyInput.focus();
+                    }, 10);
+                }
+            }
+        }
+
+        function abrirModalOrderType() {
+            document.getElementById("genericModalTitle").innerText = "Tipos de Pedidos";
+            document.getElementById("genericSearchInput").value = "VR %";
+            document.getElementById("genericModalHeader").innerHTML = "<tr><th>Name</th></tr>";
+
+            const opciones = [
+                { name: "VR B002" },
+                { name: "VR B003" },
+                { name: "VR F002" },
+                { name: "VR F003" }
+            ];
+
+            renderGenericModalList(opciones, (item) => {
+                document.getElementById("orderTypeVal").value = item.name;
+            });
+        }
+
+        function abrirModalListaPrecio() {
+            document.getElementById("genericModalTitle").innerText = "Lista de Precios";
+            document.getElementById("genericSearchInput").value = "601%";
+            document.getElementById("genericModalHeader").innerHTML = "<tr><th>List_Header_Id</th><th>Description</th></tr>";
+
+            const opciones = [
+                { id: "6011", desc: "LISTA DE PRECIO 1 - AL POR MENOR" },
+                { id: "6012", desc: "LISTA DE PRECIO 2 - AL POR MAYOR" }
+            ];
+
+            renderGenericModalList(opciones, (item) => {
+                document.getElementById("listaPrecioCod").value = item.id;
+                document.getElementById("listaPrecioDesc").value = item.desc;
+                listaPrecioActual = item.id;
+                aplicarListaPrecio();
+            }, true);
+        }
+
+        function renderGenericModalList(items, callback, isTwoCols = false) {
+            const tbody = document.getElementById("genericModalList");
+            tbody.innerHTML = "";
+            genericCallback = callback;
+            selectedGenericItem = items[0] || null;
+
+            items.forEach((item, index) => {
+                const tr = document.createElement("tr");
+                if (index === 0) tr.classList.add("selected");
+
+                if (isTwoCols) {
+                    tr.innerHTML = `<td>${item.id}</td><td>${item.desc}</td>`;
+                } else {
+                    tr.innerHTML = `<td>${item.name}</td>`;
+                }
+
+                tr.onclick = () => {
+                    document.querySelectorAll("#genericModalList tr").forEach(r => r.classList.remove("selected"));
+                    tr.classList.add("selected");
+                    selectedGenericItem = item;
+                };
+
+                tr.ondblclick = () => {
+                    selectedGenericItem = item;
+                    aceptarModalGenerico();
+                };
+
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById("genericModal").classList.add("active");
+        }
+
+        function aceptarModalGenerico() {
+            if (selectedGenericItem && genericCallback) {
+                genericCallback(selectedGenericItem);
+                cerrarModal("genericModal");
+            }
+        }
+
+        function cerrarModal(id) {
+            document.getElementById(id).classList.remove("active");
+        }
+    </script>
+</body>
+</html>
