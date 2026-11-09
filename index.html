@@ -896,7 +896,7 @@
                 <button onclick="cerrarAlertModal()" style="background:transparent; color:white; border:none; font-weight:bold; cursor:pointer;">X</button>
             </div>
             <div class="modal-body" style="padding: 15px; display: flex; align-items: center; gap: 15px;">
-                <span style="font-size: 32px;">🔔</span>
+                <svg width="32" height="32" viewBox="0 0 32 32" style="flex-shrink:0;" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="#d90000" stroke="#ffffff" stroke-width="2"/><rect x="14" y="7" width="4" height="12" rx="1.5" fill="#ffffff"/><circle cx="16" cy="24" r="2.4" fill="#ffffff"/></svg>
                 <span id="alertModalText" style="font-size: 11px; color: #ffffff; line-height: 1.3;">
                     La cantidad por almacen no puede ser diferente a la solicitada por el cliente
                 </span>
@@ -1661,6 +1661,24 @@
             }, 50);
         }
 
+        /* Correlativo distinto en cada facturación (7 dígitos, sin repetir por serie) */
+        const correlativosUsados = {};
+        function generarCorrelativoUnico(serie) {
+            const key = 'correlativosUsados_' + serie;
+            let usados = correlativosUsados[serie] || (correlativosUsados[serie] = []);
+            try {
+                const guardado = JSON.parse(localStorage.getItem(key) || '[]');
+                if (Array.isArray(guardado)) usados = correlativosUsados[serie] = guardado;
+            } catch (e) {}
+            let num;
+            do {
+                num = String(Math.floor(1000000 + Math.random() * 9000000));
+            } while (usados.includes(num));
+            usados.push(num);
+            try { localStorage.setItem(key, JSON.stringify(usados.slice(-500))); } catch (e) {}
+            return num;
+        }
+
         /* Generar Documento */
         function generarDocumento() {
             const regTipoDoc = document.getElementById('regTipoDoc').value.toUpperCase();
@@ -1673,7 +1691,7 @@
             else if (regTipoDoc.startsWith("F")) serie = "F002";
             else serie = "B002";
 
-            const num = serie.startsWith("F") ? "1868546" : "1960067";
+            const num = generarCorrelativoUnico(serie);
             const mensaje = `Generación satisfactoria. Serie... - ${serie}--${num}`;
 
             mostrarAlerta(mensaje, () => {
